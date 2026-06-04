@@ -1,0 +1,52 @@
+{
+  "rss_feeds": [
+    {"name": "OpenAI Blog", "url": "https://openai.com/blog/rss.xml", "company": "OpenAI", "tier": 1},
+    {"name": "Anthropic News", "url": "https://www.anthropic.com/rss.xml", "company": "Anthropic", "tier": 1},
+    {"name": "Google DeepMind Blog", "url": "https://deepmind.google/blog/rss.xml", "company": "Google DeepMind", "tier": 1},
+    {"name": "Hugging Face Blog", "url": "https://huggingface.co/blog/feed.xml", "company": "Hugging Face", "tier": 1},
+    {"name": "Mistral AI Blog", "url": "https://mistral.ai/news/rss.xml", "company": "Mistral AI", "tier": 1},
+    {"name": "Meta AI Blog", "url": "https://ai.meta.com/blog/rss/", "company": "Meta AI", "tier": 1},
+    {"name": "NVIDIA AI Blog", "url": "https://blogs.nvidia.com/blog/category/deep-learning/feed/", "company": "Nvidia AI", "tier": 1},
+    {"name": "VentureBeat AI", "url": "https://venturebeat.com/category/ai/feed/", "company": null, "tier": 1},
+    {"name": "TechCrunch AI", "url": "https://techcrunch.com/category/artificial-intelligence/feed/", "company": null, "tier": 1},
+    {"name": "MIT Technology Review AI", "url": "https://www.technologyreview.com/topic/artificial-intelligence/feed", "company": null, "tier": 1},
+    {"name": "MarkTechPost", "url": "https://www.marktechpost.com/feed/", "company": null, "tier": 2},
+    {"name": "The Batch (DeepLearning.AI)", "url": "https://www.deeplearning.ai/the-batch/feed/", "company": null, "tier": 2},
+    {"name": "AI Business", "url": "https://aibusiness.com/rss.xml", "company": null, "tier": 2},
+    {"name": "Towards Data Science", "url": "https://towardsdatascience.com/feed", "company": null, "tier": 2},
+    {"name": "The Information AI", "url": "https://www.theinformation.com/feed", "company": null, "tier": 1},
+    {"name": "Wired AI", "url": "https://www.wired.com/feed/tag/ai/latest/rss", "company": null, "tier": 2},
+    {"name": "Ars Technica AI", "url": "https://arstechnica.com/ai/feed/", "company": null, "tier": 2},
+    {"name": "IEEE Spectrum AI", "url": "https://spectrum.ieee.org/rss/topic/artificial-intelligence", "company": null, "tier": 2},
+    {"name": "Microsoft AI Blog", "url": "https://blogs.microsoft.com/ai/feed/", "company": "Microsoft AI", "tier": 1},
+    {"name": "AWS Machine Learning Blog", "url": "https://aws.amazon.com/blogs/machine-learning/feed/", "company": "Amazon Bedrock", "tier": 2},
+    {"name": "Google Cloud AI Blog", "url": "https://cloud.google.com/blog/products/ai-machine-learning/rss", "company": "Vertex AI", "tier": 2},
+    {"name": "Stability AI Blog", "url": "https://stability.ai/news/rss.xml", "company": "Stability AI", "tier": 2},
+    {"name": "Cohere Blog", "url": "https://cohere.com/blog/rss", "company": "Cohere", "tier": 2},
+    {"name": "Weights & Biases Blog", "url": "https://wandb.ai/blog/feed", "company": "Weights & Biases", "tier": 2},
+    {"name": "DeepSeek Blog", "url": "https://api-docs.deepseek.com/news/rss.xml", "company": "DeepSeek", "tier": 1},
+    {"name": "Scale AI Blog", "url": "https://scale.com/blog/rss.xml", "company": "Scale AI", "tier": 2},
+    {"name": "Groq Blog", "url": "https://groq.com/blog/rss", "company": "Groq", "tier": 2},
+    {"name": "LangChain Blog", "url": "https://blog.langchain.dev/rss/", "company": "LangChain", "tier": 2},
+    {"name": "Perplexity Blog", "url": "https://blog.perplexity.ai/rss", "company": "Perplexity AI", "tier": 2},
+    {"name": "ElevenLabs Blog", "url": "https://elevenlabs.io/blog/rss.xml", "company": "ElevenLabs", "tier": 2}
+  ],
+  "reddit_subreddits": [
+    {"name": "LocalLLaMA", "focus": "local models, new releases, benchmarks"},
+    {"name": "MachineLearning", "focus": "research papers, technical advances"},
+    {"name": "artificial", "focus": "general AI news and discussion"},
+    {"name": "OpenAI", "focus": "OpenAI products and news"},
+    {"name": "singularity", "focus": "AI progress and future trends"},
+    {"name": "ChatGPT", "focus": "ChatGPT updates and use cases"},
+    {"name": "StableDiffusion", "focus": "image AI, Stable Diffusion news"},
+    {"name": "ClaudeAI", "focus": "Anthropic Claude news"},
+    {"name": "Bard", "focus": "Google AI news"},
+    {"name": "AIAssistants", "focus": "AI assistant tools and launches"}
+  ],
+  "twitter_accounts_to_monitor": [
+    "@sama", "@demishashabis", "@ylecun", "@GaryMarcus",
+    "@karpathy", "@emollick", "@AnthropicAI", "@OpenAI",
+    "@GoogleDeepMind", "@MistralAI", "@huggingface",
+    "@skirano", "@swyx", "@bentossell", "@ilyasut"
+  ]
+}

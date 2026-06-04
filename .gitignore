@@ -1,0 +1,23 @@
+# Environments
+.env
+
+# Database
+data/*.db
+data/*.sqlite
+data/agent.db
+
+# Python virtual environment & cache
+venv/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Logs
+logs/
+*.log
+
+# OS-specific files
+.DS_Store
+Thumbs.db

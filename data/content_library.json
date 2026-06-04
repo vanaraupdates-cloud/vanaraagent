@@ -1,0 +1,103 @@
+{
+  "hooks": {
+    "news": [
+      "Breaking:",
+      "Just dropped:",
+      "This just happened:",
+      "Hot off the press:",
+      "New today:",
+      "In case you missed it:",
+      "Big news:",
+      "The AI world just shifted:",
+      "Something important happened:",
+      "Pay attention to this:"
+    ],
+    "insight": [
+      "Here's what nobody is talking about:",
+      "The part everyone's missing:",
+      "Let me explain why this matters:",
+      "Unpopular opinion:",
+      "Here's the real story:",
+      "Most people don't realize:",
+      "The hidden implication:",
+      "What this actually means:",
+      "Stop and think about this:",
+      "Everyone's focused on X. But Y is the real story."
+    ],
+    "prediction": [
+      "6 months from now, this will make sense:",
+      "I'll look back on this moment:",
+      "Bold prediction:",
+      "Here's where this is going:",
+      "Mark my words:",
+      "By end of year:",
+      "This will age well:",
+      "Future historians will note:",
+      "The domino just fell. Here's what happens next:",
+      "I'm calling it:"
+    ],
+    "question": [
+      "Genuine question:",
+      "Hot take — fight me in the replies:",
+      "Serious question for AI builders:",
+      "What's your take?",
+      "Am I wrong here?",
+      "Real talk:",
+      "Let's settle this:",
+      "The debate everyone's having:",
+      "Founders: how are you handling this?",
+      "Builders, I need your honest answer:"
+    ],
+    "opinion": [
+      "My honest take:",
+      "After testing this for a week:",
+      "I've changed my mind on this:",
+      "Three months ago I said X. I was wrong.",
+      "Hot take that will age well:",
+      "The contrarian view that nobody wants to say:",
+      "After reading everything about this:",
+      "Here's my spicy opinion:",
+      "I know this is unpopular but:",
+      "Being honest about this:"
+    ]
+  },
+  "ctas": {
+    "twitter": [
+      "What do you think?",
+      "Agree or disagree?",
+      "Are you building with this?",
+      "Who's already using this?",
+      "Drop your take below.",
+      "Follow for daily AI updates.",
+      "RT if this surprised you.",
+      "Bookmark this for later.",
+      "Share this with someone who needs to see it.",
+      "Reply with your prediction.",
+      "Tag someone building in AI.",
+      "Save this thread.",
+      "What am I missing?",
+      "Let me know if you disagree.",
+      "Which side are you on?",
+      "Follow for more analysis like this.",
+      "Debate me in the replies.",
+      "This changes things. Pass it on."
+    ],
+    "linkedin": [
+      "What's your take on this shift?",
+      "Are you integrating AI into your workflow yet?",
+      "I'd love to hear how you're approaching this.",
+      "Comment below with your experience.",
+      "Follow me for daily AI business analysis.",
+      "Share this if it adds value to your network.",
+      "What's the biggest challenge you're seeing?",
+      "Are you bullish or bearish on this?",
+      "How is your team adapting to this?",
+      "Drop your thoughts in the comments."
+    ]
+  },
+  "content_ratio": {
+    "original_analysis": 0.7,
+    "reactions": 0.2,
+    "references": 0.1
+  }
+}

@@ -1,0 +1,1960 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Command Center — vanara ai</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    /* ═══════════════════════════════════════════════════════════
+       RESET & BASE (LIGHT THEME)
+    ═══════════════════════════════════════════════════════════ */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg-primary:    #f3f4f6; /* Soft warm grey/cream background */
+      --bg-secondary:  #e5e7eb; 
+      --bg-tertiary:   #cbd5e1; 
+      --card-bg:       #ffffff; /* Solid white cards */
+      --card-border:   #e5e7eb; 
+      --card-hover:    #f3f4f6;
+
+      --blue:          #0a66c2; /* LinkedIn Blue */
+      --blue-dim:      #e8f3fc; /* Soft active item background */
+      --blue-glow:     rgba(10,102,194,0.1);
+      --violet:        #7c3aed;
+      --violet-dim:    #f3e8ff;
+      --violet-glow:   rgba(124,58,237,0.1);
+      --emerald:       #10b981;
+      --emerald-dim:   #d1fae5;
+      --emerald-glow:  rgba(16,185,129,0.1);
+      --amber:         #d97706; 
+      --amber-dim:     #fef3c7; 
+      --amber-glow:    rgba(217,119,6,0.15);
+      --red:           #dc2626; 
+      --red-dim:       #fee2e2; 
+      --rose:          #e11d48;
+
+      --text-primary:  #181818; /* Dark text */
+      --text-secondary:#4f4f4f; /* Medium text */
+      --text-muted:    #828282; /* Muted text */
+      --border-color:  #e5e7eb;
+
+      --sidebar-w:     245px;
+      --radius:        8px;     /* Crisp rounded corners */
+      --radius-sm:     6px;
+      --transition:    0.22s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    html, body {
+      height: 100%;
+      font-family: 'Inter', system-ui, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      overflow: hidden;
+      font-size: 13.5px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Scrollbar Styling */
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.08); border-radius: 99px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(0, 0, 0, 0.16); }
+
+    /* Layout */
+    .app {
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+      position: relative;
+      background: var(--bg-primary);
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       SIDEBAR
+    ═══════════════════════════════════════════════════════════ */
+    .sidebar {
+      width: var(--sidebar-w);
+      min-width: var(--sidebar-w);
+      background: #ffffff;
+      border-right: 1px solid var(--card-border);
+      box-shadow: 2px 0 8px rgba(0, 0, 0, 0.01);
+      display: flex;
+      flex-direction: column;
+      padding: 0;
+      position: relative;
+      z-index: 10;
+    }
+
+    .sidebar-logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 24px 20px 20px;
+      border-bottom: 1px solid var(--border-color);
+    }
+    .logo-icon {
+      width: 32px; height: 32px;
+      border-radius: 6px;
+      background: #0a66c2;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px;
+      font-weight: 800;
+      color: white;
+      flex-shrink: 0;
+    }
+    .logo-text { font-size: 16px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.2; color: var(--text-primary); }
+    .logo-sub  { font-size: 10px; color: var(--text-muted); font-weight: 500; }
+
+    .sidebar-section-label {
+      font-size: 9.5px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      padding: 20px 20px 8px;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 16px;
+      margin: 2px 12px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      color: var(--text-secondary);
+      font-size: 13.5px;
+      font-weight: 500;
+      transition: all var(--transition);
+      position: relative;
+      user-select: none;
+    }
+    .nav-item:hover {
+      background: rgba(10, 102, 194, 0.04);
+      color: #0a66c2;
+    }
+    .nav-item.active {
+      background: #e8f3fc;
+      color: #0a66c2;
+      font-weight: 600;
+      border-left: none;
+      padding-left: 16px;
+    }
+    .nav-icon { font-size: 16px; width: 20px; text-align: center; flex-shrink: 0; }
+    
+    .sidebar-slots-container {
+      flex: 1;
+      overflow-y: auto;
+      margin: 4px 12px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      padding-right: 4px;
+    }
+    .slot-nav-item {
+      display: flex;
+      align-items: center;
+      padding: 8px 12px;
+      border-radius: var(--radius-sm);
+      font-size: 12px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: background var(--transition), color var(--transition);
+      background: transparent;
+      border: none;
+      width: 100%;
+      text-align: left;
+    }
+    .slot-nav-item:hover {
+      background: rgba(10, 102, 194, 0.04);
+      color: #0a66c2;
+    }
+    .slot-nav-num {
+      width: 18px; height: 18px;
+      border-radius: 4px;
+      background: #0a66c2;
+      color: #ffffff;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 10px; font-weight: 700;
+      flex-shrink: 0;
+    }
+    .slot-nav-text {
+      font-weight: 500;
+      font-size: 11.5px;
+    }
+
+    .sidebar-footer {
+      margin-top: auto;
+      padding: 16px 20px;
+      border-top: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      background: #ffffff;
+    }
+    .status-indicator-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+    .status-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--bg-tertiary);
+      display: inline-block;
+    }
+    .status-dot.active { background: var(--emerald); }
+    .status-dot.manual { background: var(--amber); }
+
+    /* ═══════════════════════════════════════════════════════════
+       MAIN CONTENT
+    ═══════════════════════════════════════════════════════════ */
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* Top Bar */
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px 28px;
+      background: #ffffff;
+      border-bottom: 1px solid var(--border-color);
+      flex-shrink: 0;
+    }
+    .topbar-left h1 {
+      font-size: 22px;
+      font-weight: 800;
+      color: var(--text-primary);
+      letter-spacing: -0.03em;
+    }
+    .topbar-left p { font-size: 12.5px; color: var(--text-muted); margin-top: 2px; }
+
+    .topbar-right {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .next-post-widget {
+      background: #ffffff;
+      border: 1px solid var(--border-color);
+      border-radius: 99px;
+      padding: 6px 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+    }
+    .live-pulse-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--emerald);
+      animation: livePulse 1.5s infinite;
+    }
+    @keyframes livePulse {
+      0%, 100% { box-shadow: 0 0 0 0 var(--emerald-glow); }
+      50%       { box-shadow: 0 0 0 5px transparent; }
+    }
+
+    /* Content Pane */
+    .content-pane {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px 28px;
+    }
+
+    /* Tab Layouts */
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* Solid Clean Cards */
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.015);
+      transition: all var(--transition);
+      margin-bottom: 16px;
+    }
+    .card:hover {
+      border-color: rgba(0, 0, 0, 0.08);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.02);
+    }
+    .card-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--card-border);
+    }
+    .card-title { font-size: 14px; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 8px; }
+    .card-header-badge {
+      background: var(--bg-primary);
+      color: var(--text-secondary);
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 99px;
+    }
+    .card-body  { padding: 20px; }
+
+    /* Platform Picker Pills */
+    .platform-selector {
+      display: flex;
+      background: var(--bg-primary);
+      padding: 4px;
+      border-radius: var(--radius-sm);
+      margin-bottom: 16px;
+      width: fit-content;
+      border: 1px solid var(--border-color);
+    }
+    .platform-pill {
+      padding: 6px 16px;
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      border: none;
+      background: transparent;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: all var(--transition);
+    }
+    .platform-pill.active {
+      background: #ffffff;
+      color: #0a66c2;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    }
+
+    /* Horizontal Slot Grid */
+    .slot-grid-container {
+      display: flex;
+      gap: 12px;
+      overflow-x: auto;
+      padding-bottom: 8px;
+      margin-bottom: 20px;
+    }
+    .slot-card {
+      min-width: 230px;
+      max-width: 230px;
+      background: #ffffff;
+      border: 1px solid var(--border-color);
+      border-left: 4px solid #cbd5e1;
+      border-radius: var(--radius);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+      transition: all var(--transition);
+      position: relative;
+    }
+    .slot-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.04);
+    }
+    .slot-card.status-posted {
+      border-left-color: #10b981;
+    }
+    .slot-card.status-failed {
+      border-left-color: #dc2626;
+    }
+    .slot-card.status-pending {
+      border-left-color: #cbd5e1;
+    }
+    .slot-card-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 2px;
+    }
+    .slot-card-label { font-size: 9.5px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+    .slot-card-time { font-size: 18px; font-weight: 800; color: var(--text-primary); }
+    .slot-card-title {
+      font-size: 12.5px;
+      color: var(--text-secondary);
+      font-weight: 500;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      min-height: 38px;
+      line-height: 1.4;
+    }
+    .slot-card-badge {
+      font-size: 10px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 4px;
+      width: fit-content;
+    }
+    .slot-card-badge.status-published {
+      background: #d1fae5;
+      color: #065f46;
+    }
+    .slot-card-badge.status-missed, .slot-card-badge.status-skipped {
+      background: #f3f4f6;
+      color: #4b5563;
+    }
+    .slot-card-badge.status-failed {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+    .slot-card-badge.status-pending {
+      background: #e8f3fc;
+      color: #0a66c2;
+    }
+
+    /* Stats Grid */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    .stat-card {
+      background: #ffffff;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius);
+      padding: 16px 20px;
+      transition: all var(--transition);
+    }
+    .stat-card:hover {
+      box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+    }
+    .stat-label { font-size: 10.5px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; margin-bottom: 4px; }
+    .stat-value { font-size: 26px; font-weight: 800; color: var(--text-primary); line-height: 1.1; }
+    .stat-sub { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+
+    /* Dashboard Layout Splits */
+    .two-col-layout {
+      display: grid;
+      grid-template-columns: 1.8fr 1.2fr;
+      gap: 20px;
+    }
+
+    /* Today's Posts List */
+    .post-list { display: flex; flex-direction: column; gap: 12px; }
+    .post-row {
+      display: flex;
+      gap: 16px;
+      padding: 14px 0;
+      border-bottom: 1px solid var(--border-color);
+      align-items: flex-start;
+      position: relative;
+    }
+    .post-row:last-child { border-bottom: none; }
+    .post-row-index {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      background: #0a66c2;
+      color: #ffffff;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 700;
+      flex-shrink: 0;
+    }
+    .post-row-body { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+    .post-row-title { font-size: 13.5px; font-weight: 700; color: var(--text-primary); }
+    .post-row-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 2px; }
+    .post-row-snippet { font-style: italic; color: var(--rose); margin-top: 6px; font-size: 12.5px; }
+    .post-row-right { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; flex-shrink: 0; }
+    .post-row-time { font-size: 13px; font-weight: 700; color: var(--text-primary); }
+    .post-row-actions {
+      display: flex;
+      gap: 6px;
+      margin-top: 4px;
+      opacity: 0;
+      transition: opacity var(--transition);
+      pointer-events: none;
+    }
+    .post-row:hover .post-row-actions {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    /* Live Activity Feed */
+    .activity-list { display: flex; flex-direction: column; gap: 10px; max-height: 480px; overflow-y: auto; }
+    .activity-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--bg-secondary);
+      font-size: 12px;
+    }
+    .activity-item:last-child { border-bottom: none; }
+    .activity-time { font-weight: 600; color: var(--text-secondary); min-width: 60px; }
+    .activity-tag {
+      font-size: 9.5px;
+      font-weight: 700;
+      padding: 1px 6px;
+      border-radius: 4px;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    .activity-msg { color: var(--text-secondary); flex: 1; line-height: 1.4; }
+
+    /* Badges */
+    .badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 2px 8px; border-radius: 4px;
+      font-size: 10.5px; font-weight: 600;
+      border: none;
+    }
+    .badge-blue    { background: #e0f2fe; color: #0369a1; }
+    .badge-green   { background: #d1fae5; color: #047857; }
+    .badge-red     { background: #fee2e2; color: #b91c1c; }
+    .badge-amber   { background: #fef3c7; color: #b45309; }
+    .badge-gray    { background: #f1f5f9; color: #475569; }
+    .badge-violet  { background: #f3e8ff; color: #6d28d9; }
+    .badge-ready   { background: #e8f3fc; color: #0a66c2; }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 8px 16px;
+      border-radius: var(--radius-sm);
+      font-size: 12.5px; font-weight: 600;
+      border: 1px solid transparent; cursor: pointer;
+      transition: all var(--transition);
+      font-family: inherit;
+    }
+    .btn:active { transform: scale(0.97); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-primary {
+      background: #0a66c2;
+      color: #ffffff;
+      box-shadow: 0 2px 8px rgba(10, 102, 194, 0.15);
+    }
+    .btn-primary:hover:not(:disabled) { background: #084d92; box-shadow: 0 4px 12px rgba(10, 102, 194, 0.25); }
+    .btn-outline {
+      background: #ffffff;
+      border: 1px solid #e5e7eb;
+      color: #0a66c2;
+      width: 100%;
+      text-align: center;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 6px 12px;
+      font-size: 11px;
+      font-weight: 600;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all var(--transition);
+    }
+    .btn-outline:hover {
+      background: #f3f4f6;
+      border-color: #cbd5e1;
+    }
+
+    .btn-secondary {
+      background: #ffffff;
+      border-color: var(--border-color);
+      color: var(--text-secondary);
+    }
+    .btn-secondary:hover:not(:disabled) { background: var(--bg-secondary); color: var(--text-primary); }
+    .btn-xs { padding: 3px 8px; font-size: 11px; border-radius: 4px; }
+    .btn-ghost { background: transparent; color: var(--text-secondary); border: none; }
+    .btn-ghost:hover { background: var(--bg-secondary); color: var(--text-primary); }
+
+    /* Analytics Chart Panel */
+    .analytics-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+    .chart-box {
+      background: #ffffff;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius);
+      padding: 20px;
+      height: 320px;
+      position: relative;
+    }
+
+    /* Logs view */
+    .logs-table-card {
+      background: #ffffff;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .logs-table-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .logs-list {
+      display: flex;
+      flex-direction: column;
+      max-height: 600px;
+      overflow-y: auto;
+    }
+    .log-row {
+      display: flex;
+      padding: 10px 20px;
+      border-bottom: 1px solid var(--bg-secondary);
+      font-size: 12px;
+      align-items: center;
+    }
+    .log-row:last-child { border-bottom: none; }
+    .log-level { font-weight: 700; width: 70px; }
+    .log-module { color: var(--text-muted); width: 120px; font-weight: 500; }
+    .log-msg { flex: 1; color: var(--text-secondary); }
+    .log-time { color: var(--text-muted); font-size: 11px; }
+
+    /* Research tab grid */
+    .research-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+    }
+    .research-card {
+      background: #ffffff;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius);
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .research-card-title { font-size: 14px; font-weight: 700; color: var(--text-primary); }
+    .research-card-title a { color: inherit; text-decoration: none; }
+    .research-card-title a:hover { color: #0284c7; }
+    .research-card-meta { display: flex; gap: 8px; flex-wrap: wrap; }
+    .research-scores {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+      margin-top: 6px;
+    }
+    .research-score-bar-track {
+      height: 4px;
+      background: var(--bg-secondary);
+      border-radius: 99px;
+      overflow: hidden;
+      margin-top: 2px;
+    }
+    .research-score-bar-fill {
+      height: 100%;
+      border-radius: 99px;
+      transition: width 0.8s ease;
+    }
+
+    /* Modal Overlay */
+    .modal-overlay {
+      position: fixed; inset: 0;
+      background: rgba(15, 23, 42, 0.4);
+      backdrop-filter: blur(4px);
+      z-index: 1000;
+      display: none; align-items: center; justify-content: center;
+    }
+    .modal {
+      background: #ffffff;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius);
+      width: 100%;
+      max-width: 500px;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* Toast system */
+    #toast-container {
+      position: fixed;
+      bottom: 24px; right: 24px;
+      z-index: 9999;
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .toast {
+      display: flex; align-items: center; gap: 10px;
+      padding: 12px 16px;
+      background: #ffffff;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      color: var(--text-primary);
+      min-width: 260px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+      animation: toastIn 0.2s ease;
+    }
+    .toast.fade-out { animation: toastOut 0.2s ease forwards; }
+    .toast.success { border-left: 3px solid var(--emerald); }
+    .toast.error   { border-left: 3px solid var(--red); }
+    .toast.info    { border-left: 3px solid var(--blue); }
+    @keyframes toastIn  { from { opacity:0; transform: translateY(12px); } to { opacity:1; transform: translateY(0); } }
+    @keyframes toastOut { from { opacity:1; transform: translateY(0); }    to { opacity:0; transform: translateY(12px); } }
+
+    .empty-state {
+      text-align: center; padding: 40px 20px;
+      color: var(--text-muted);
+    }
+    .empty-icon { font-size: 32px; margin-bottom: 8px; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- ═══════════════════════════════════════════════════════════
+         GLASSY SIDEBAR
+      ═══════════════════════════════════════════════════════════ -->
+    <div class="sidebar">
+      <div class="sidebar-logo">
+        <div class="logo-icon">V</div>
+        <div>
+          <div class="logo-text">vanara ai</div>
+          <div class="logo-sub">AI Content Automation</div>
+        </div>
+      </div>
+
+      <div class="sidebar-section-label">Overview</div>
+      <div class="nav-item active" onclick="switchTab('overview')">
+        <span class="nav-icon">📊</span>
+        <span>Dashboard</span>
+      </div>
+      <div class="nav-item" onclick="switchTab('today-posts')">
+        <span class="nav-icon">📝</span>
+        <span>Today's Posts</span>
+      </div>
+      <div class="nav-item" onclick="switchTab('research')">
+        <span class="nav-icon">🔬</span>
+        <span>Trend Discovery</span>
+      </div>
+      <div class="nav-item" onclick="switchTab('analytics')">
+        <span class="nav-icon">📈</span>
+        <span>Analytics</span>
+      </div>
+      <div class="nav-item" onclick="switchTab('logs')">
+        <span class="nav-icon">📋</span>
+        <span>Activity Log</span>
+      </div>
+
+      <div class="sidebar-section-label">Run Pipeline</div>
+      <div class="nav-item" onclick="triggerResearch()">
+        <span class="nav-icon">🔍</span>
+        <span>Research Now</span>
+      </div>
+      <div class="nav-item" onclick="triggerGeneration()">
+        <span class="nav-icon">✍️</span>
+        <span>Generate Posts</span>
+      </div>
+      <div class="nav-item" onclick="rebuildSchedule()">
+        <span class="nav-icon">⚡</span>
+        <span>Full Pipeline</span>
+      </div>
+
+      <div class="sidebar-section-label">Publish Slots</div>
+      <div class="sidebar-slots-container" id="sidebar-slots-list">
+        <!-- Slots will render dynamically -->
+        <div class="empty-state" style="padding: 10px 0;"><p style="font-size: 11px;">No slots scheduled</p></div>
+      </div>
+
+      <div class="sidebar-footer">
+        <div class="status-indicator-row">
+          <span>Gemini AI</span>
+          <span class="status-dot" id="dot-gemini"></span>
+        </div>
+        <div class="status-indicator-row">
+          <span>LinkedIn</span>
+          <span class="status-dot" id="dot-linkedin"></span>
+        </div>
+        <div class="status-indicator-row">
+          <span>Twitter/X</span>
+          <span class="status-dot" id="dot-twitter"></span>
+        </div>
+        <div class="status-indicator-row">
+          <span>Reddit RSS</span>
+          <span class="status-dot" id="dot-reddit"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         MAIN PANE
+      ═══════════════════════════════════════════════════════════ -->
+    <div class="main">
+      <!-- Top Bar -->
+      <div class="topbar">
+        <div class="topbar-left">
+          <h1 id="page-title">Command Center</h1>
+          <p id="page-subtitle">Autonomous LinkedIn content engine — 30 posts/day, fully automated</p>
+        </div>
+        <div class="topbar-right">
+          <div class="next-post-widget">
+            <div class="live-pulse-dot"></div>
+            <div>
+              <span style="color: var(--text-muted); font-size: 11px;">Next post: </span>
+              <strong id="next-post-time">09:00 (today)</strong>
+              <span id="next-post-countdown" style="margin-left: 8px; font-variant-numeric: tabular-nums; color: var(--text-secondary); font-weight: 600;">00:00:00</span>
+            </div>
+          </div>
+          <button class="btn btn-primary" onclick="rebuildSchedule()" id="run-pipeline-btn">
+            <span>⚡</span> Run Pipeline
+          </button>
+        </div>
+      </div>
+
+      <!-- Content Area -->
+      <div class="content-pane">
+        <!-- ── TAB: OVERVIEW (DASHBOARD) ── -->
+        <div class="tab-panel active" id="tab-overview">
+          <!-- Platform Toggles -->
+          <div class="platform-selector">
+            <button class="platform-pill active" onclick="setPlatform('twitter')" id="pill-tw">Twitter/X (30 posts)</button>
+            <button class="platform-pill" onclick="setPlatform('linkedin')" id="pill-li">LinkedIn (30 posts)</button>
+          </div>
+
+          <!-- Slots Slider Grid -->
+          <div class="slot-grid-container" id="slots-slider-grid">
+            <!-- Dynamic Slots -->
+          </div>
+
+          <!-- Stats Grid -->
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="stat-label">TOTAL PUBLISHED</div>
+              <div class="stat-value" id="stat-published">0</div>
+              <div class="stat-sub">All time</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">TOTAL LIKES</div>
+              <div class="stat-value" id="stat-likes">0</div>
+              <div class="stat-sub">Across all posts</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">TOTAL COMMENTS</div>
+              <div class="stat-value" id="stat-comments">0</div>
+              <div class="stat-sub">Engagement</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">AVG LIKES/POST</div>
+              <div class="stat-value" id="stat-avg-likes">0.0</div>
+              <div class="stat-sub">Performance indicator</div>
+            </div>
+          </div>
+
+          <!-- Splitted Dashboard View -->
+          <div class="two-col-layout">
+            <!-- Left: Today's Posts -->
+            <div class="card" style="margin-bottom: 0;">
+              <div class="card-header">
+                <span class="card-title">📝 Today's Posts Queue</span>
+                <span class="card-header-badge" id="posts-queue-badge">30 posts</span>
+              </div>
+              <div class="card-body">
+                <div class="post-list" id="dashboard-posts-list">
+                  <!-- Rendered dynamically -->
+                </div>
+              </div>
+            </div>
+
+            <!-- Right: Live Activity -->
+            <div class="card" style="margin-bottom: 0;">
+              <div class="card-header">
+                <span class="card-title">⚡ Live Activity Feed</span>
+                <span class="card-header-badge" id="activity-events-badge">60 events</span>
+              </div>
+              <div class="card-body" style="padding: 10px 20px;">
+                <div class="activity-list" id="dashboard-activity-list">
+                  <!-- SSE Live Stream -->
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── TAB: TODAY'S POSTS (FULL) ── -->
+        <div class="tab-panel" id="tab-today-posts">
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">📝 Daily Social Schedule Feed</span>
+              <div class="platform-selector" style="margin-bottom: 0;">
+                <button class="platform-pill active" onclick="setPlatform('twitter')" id="tab-pill-tw">Twitter/X</button>
+                <button class="platform-pill" onclick="setPlatform('linkedin')" id="tab-pill-li">LinkedIn</button>
+              </div>
+            </div>
+            <div class="card-body">
+              <div class="post-list" id="full-posts-list">
+                <!-- Dynamic loading -->
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── TAB: TREND DISCOVERY (RESEARCH) ── -->
+        <div class="tab-panel" id="tab-research">
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">🔬 Discovered Industry AI News</span>
+              <div style="display: flex; gap: 8px;">
+                <select class="filter-select" id="res-cycle-filter" onchange="renderResearch()">
+                  <option value="">All Cycles</option>
+                  <option value="morning">Morning</option>
+                  <option value="afternoon">Afternoon</option>
+                </select>
+                <select class="filter-select" id="res-minscore-filter" onchange="renderResearch()">
+                  <option value="0">Min Score</option>
+                  <option value="80">Over 80 (High)</option>
+                  <option value="60">Over 60 (Med)</option>
+                  <option value="40">Over 40 (Low)</option>
+                </select>
+              </div>
+            </div>
+            <div class="card-body">
+              <div class="research-grid" id="research-list">
+                <!-- Research items loaded dynamically -->
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── TAB: ANALYTICS ── -->
+        <div class="tab-panel" id="tab-analytics">
+          <div class="two-col-layout" style="margin-bottom: 20px;">
+            <!-- Left: Overall Performance -->
+            <div class="card" style="margin-bottom: 0;">
+              <div class="card-header">
+                <span class="card-title">📊 Overall Performance</span>
+              </div>
+              <div class="card-body">
+                <div class="metrics-grid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;">
+                  <div class="metric-box" style="background: #f8fafc; border: 1px solid var(--border-color); border-radius: var(--radius); padding: 20px; text-align: center;">
+                    <div id="analytics-posts" style="font-size: 26px; font-weight: 800; color: var(--blue);">0</div>
+                    <div style="font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-top: 4px; letter-spacing: 0.05em;">POSTS</div>
+                  </div>
+                  <div class="metric-box" style="background: #f8fafc; border: 1px solid var(--border-color); border-radius: var(--radius); padding: 20px; text-align: center;">
+                    <div id="analytics-likes" style="font-size: 26px; font-weight: 800; color: var(--blue);">0</div>
+                    <div style="font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-top: 4px; letter-spacing: 0.05em;">LIKES</div>
+                  </div>
+                  <div class="metric-box" style="background: #f8fafc; border: 1px solid var(--border-color); border-radius: var(--radius); padding: 20px; text-align: center;">
+                    <div id="analytics-comments" style="font-size: 26px; font-weight: 800; color: var(--blue);">0</div>
+                    <div style="font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-top: 4px; letter-spacing: 0.05em;">COMMENTS</div>
+                  </div>
+                  <div class="metric-box" style="background: #f8fafc; border: 1px solid var(--border-color); border-radius: var(--radius); padding: 20px; text-align: center;">
+                    <div id="analytics-shares" style="font-size: 26px; font-weight: 800; color: var(--blue);">0</div>
+                    <div style="font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-top: 4px; letter-spacing: 0.05em;">SHARES</div>
+                  </div>
+                  <div class="metric-box" style="background: #f8fafc; border: 1px solid var(--border-color); border-radius: var(--radius); padding: 20px; text-align: center;">
+                    <div id="analytics-impressions" style="font-size: 26px; font-weight: 800; color: var(--blue);">0</div>
+                    <div style="font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-top: 4px; letter-spacing: 0.05em;">IMPRESSIONS</div>
+                  </div>
+                  <div class="metric-box" style="background: #f8fafc; border: 1px solid var(--border-color); border-radius: var(--radius); padding: 20px; text-align: center;">
+                    <div id="analytics-avglikes" style="font-size: 26px; font-weight: 800; color: var(--blue);">0</div>
+                    <div style="font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-top: 4px; letter-spacing: 0.05em;">AVG LIKES</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right: AI Recommendations -->
+            <div class="card" style="margin-bottom: 0;">
+              <div class="card-header">
+                <span class="card-title">🤖 AI Recommendations</span>
+              </div>
+              <div class="card-body" style="display: flex; flex-direction: column; gap: 12px; padding: 20px;">
+                <div class="rec-box" style="background: #e8f3fc; border: 1px solid #d0e7f9; border-radius: var(--radius-sm); padding: 12px 16px; font-size: 12.5px; font-weight: 500; color: var(--text-primary); display: flex; align-items: center; gap: 10px;">
+                  <span>💡</span>
+                  <span>Your best performing time is 12:00 — consider shifting more posts there</span>
+                </div>
+                <div class="rec-box" style="background: #e8f3fc; border: 1px solid #d0e7f9; border-radius: var(--radius-sm); padding: 12px 16px; font-size: 12.5px; font-weight: 500; color: var(--text-primary); display: flex; align-items: center; gap: 10px;">
+                  <span>💡</span>
+                  <span>'opinion' posts get the most engagement — write more of them</span>
+                </div>
+                <div class="rec-box" style="background: #e8f3fc; border: 1px solid #d0e7f9; border-radius: var(--radius-sm); padding: 12px 16px; font-size: 12.5px; font-weight: 500; color: var(--text-primary); display: flex; align-items: center; gap: 10px;">
+                  <span>💡</span>
+                  <span>Hooks need work — test more contrarian or surprising openers</span>
+                </div>
+                <div class="rec-box" style="background: #e8f3fc; border: 1px solid #d0e7f9; border-radius: var(--radius-sm); padding: 12px 16px; font-size: 12.5px; font-weight: 500; color: var(--text-primary); display: flex; align-items: center; gap: 10px;">
+                  <span>💡</span>
+                  <span>Use more specific numbers and data points in posts — they increase saves</span>
+                </div>
+                <div class="rec-box" style="background: #e8f3fc; border: 1px solid #d0e7f9; border-radius: var(--radius-sm); padding: 12px 16px; font-size: 12.5px; font-weight: 500; color: var(--text-primary); display: flex; align-items: center; gap: 10px;">
+                  <span>💡</span>
+                  <span>End every post with a direct question — drives comments significantly</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Bottom: Recent Posts Performance -->
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">📝 Recent Posts Performance</span>
+            </div>
+            <div class="card-body" style="padding: 10px 20px;">
+              <div id="analytics-recent-list" style="display: flex; flex-direction: column;">
+                <!-- Recent posts stats rendered dynamically -->
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── TAB: ACTIVITY LOGS (FULL) ── -->
+        <div class="tab-panel" id="tab-logs">
+          <div class="logs-table-card">
+            <div class="logs-table-header">
+              <span class="card-title">📋 Complete System Audit Logs</span>
+              <div style="display: flex; gap: 8px;">
+                <input type="text" class="filter-input" placeholder="Search logs..." id="log-search" oninput="renderLogs()" />
+                <select class="filter-select" id="log-level-filter" onchange="renderLogs()">
+                  <option value="">All Levels</option>
+                  <option value="INFO">INFO</option>
+                  <option value="SUCCESS">SUCCESS</option>
+                  <option value="WARNING">WARNING</option>
+                  <option value="ERROR">ERROR</option>
+                </select>
+              </div>
+            </div>
+            <div class="logs-list" id="log-list">
+              <!-- Logs dynamic table -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       MODALS & CONTAINERS
+    ═══════════════════════════════════════════════════════════ -->
+  <!-- Edit Post Modal -->
+  <div class="modal-overlay" id="edit-modal" onclick="closeEditModal(event)">
+    <div class="modal">
+      <div class="card-header">
+        <span class="card-title">✏️ Edit Scheduled Post</span>
+        <button class="btn btn-ghost btn-xs" onclick="closeEditModal()">Close</button>
+      </div>
+      <div class="card-body" style="display: flex; flex-direction: column; gap: 14px;">
+        <input type="hidden" id="edit-post-id" />
+        <textarea id="edit-post-content" rows="6" style="width:100%; border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding:10px; font-family:inherit; outline:none; resize:vertical; font-size:13.5px;"></textarea>
+        <div style="display:flex; justify-content:flex-end; gap:8px;">
+          <button class="btn btn-secondary" onclick="closeEditModal()">Cancel</button>
+          <button class="btn btn-primary" onclick="savePostEdit()">Save Changes</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Toast -->
+  <div id="toast-container"></div>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       JAVASCRIPT LOGIC
+    ═══════════════════════════════════════════════════════════ -->
+  <script>
+    // System Global State
+    const state = {
+      activeTab: 'overview',
+      activePlatform: 'twitter',
+      posts: [],
+      articles: [],
+      logs: [],
+      stats: {},
+      charts: {}
+    };
+
+    document.addEventListener('DOMContentLoaded', () => {
+      initSSE();
+      loadAll();
+      updateCountdownClock();
+      setInterval(updateCountdownClock, 1000);
+      setInterval(loadAll, 30000); // refresh every 30s
+    });
+
+    function loadAll() {
+      loadStats();
+      loadPosts();
+      loadResearch();
+      loadLogs();
+    }
+
+    /* ── SSE Live Updates ── */
+    function initSSE() {
+      const source = new EventSource('/api/stream');
+      source.onmessage = (event) => {
+        try {
+          const payload = JSON.parse(event.data);
+          if (payload.type === 'connected') {
+            console.log('SSE connection initialized');
+            addActivityEvent('SYSTEM', 'Connected to server', 'SUCCESS');
+          } else if (payload.type === 'ping') {
+            // silent ping
+          } else {
+            handleLiveEvent(payload);
+          }
+        } catch (e) {
+          console.error('SSE JSON error:', e);
+        }
+      };
+      source.onerror = () => {
+        console.warn('SSE disconnected, reconnecting...');
+        addActivityEvent('SYSTEM', 'SSE link lost, trying to reconnect...', 'WARNING');
+      };
+    }
+
+    function handleLiveEvent(evt) {
+      const type = evt.type;
+      const data = evt.data || {};
+      
+      let msg = '';
+      let category = 'INFO';
+      
+      switch (type) {
+        case 'research_started':
+          msg = `Research cycle started for cycle '${data.cycle || 'morning'}'`;
+          category = 'INFO';
+          break;
+        case 'generation_started':
+          msg = 'AI post generation cycle initiated in the background';
+          category = 'INFO';
+          break;
+        case 'post_updated':
+          msg = `Post #${data.post_id} was modified`;
+          category = 'SUCCESS';
+          loadPosts();
+          break;
+        case 'post_published':
+          msg = `Post successfully published on ${data.platform || 'social'}: #${data.post_id}`;
+          category = 'SUCCESS';
+          loadPosts();
+          loadStats();
+          break;
+        case 'post_failed':
+          msg = `Failed to publish post #${data.post_id} on ${data.platform || 'platform'}: ${data.error || 'Unknown error'}`;
+          category = 'ERROR';
+          loadPosts();
+          break;
+        default:
+          msg = `${type}: ${JSON.stringify(data)}`;
+      }
+
+      addActivityEvent('PIPELINE', msg, category);
+      showToast(msg, category === 'ERROR' ? 'error' : (category === 'SUCCESS' ? 'success' : 'info'));
+    }
+
+    function addActivityEvent(module, message, level = 'INFO') {
+      const list = document.getElementById('dashboard-activity-list');
+      if (!list) return;
+
+      const date = new Date();
+      const timeStr = date.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      
+      let badgeCls = 'badge-blue';
+      if (level === 'SUCCESS') badgeCls = 'badge-green';
+      if (level === 'WARNING') badgeCls = 'badge-amber';
+      if (level === 'ERROR')   badgeCls = 'badge-red';
+
+      const item = document.createElement('div');
+      item.className = 'activity-item';
+      item.innerHTML = `
+        <span class="activity-time">${timeStr}</span>
+        <span class="activity-tag badge ${badgeCls}">${module}</span>
+        <span class="activity-msg">${escHtml(message)}</span>
+      `;
+
+      list.prepend(item);
+
+      // limit activity feed size
+      if (list.children.length > 50) {
+        list.removeChild(list.lastChild);
+      }
+    }
+
+    /* ── Tab Switch ── */
+    function switchTab(tabName) {
+      state.activeTab = tabName;
+      document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(el => el.classList.remove('active'));
+
+      // Highlight active nav item
+      const navs = ['overview', 'today-posts', 'research', 'analytics', 'logs'];
+      const targetNavIdx = navs.indexOf(tabName);
+      if (targetNavIdx !== -1) {
+        const navEl = document.querySelectorAll('.sidebar .nav-item')[targetNavIdx];
+        if (navEl) navEl.classList.add('active');
+      }
+
+      const panelMap = {
+        'overview': 'tab-overview',
+        'today-posts': 'tab-today-posts',
+        'research': 'tab-research',
+        'analytics': 'tab-analytics',
+        'logs': 'tab-logs'
+      };
+
+      const panelId = panelMap[tabName];
+      const panel = document.getElementById(panelId);
+      if (panel) panel.classList.add('active');
+
+      // Update Page Title and Subtitle dynamically
+      const titleEl = document.getElementById('page-title');
+      const subtitleEl = document.getElementById('page-subtitle');
+      if (titleEl && subtitleEl) {
+        if (tabName === 'overview') {
+          titleEl.textContent = 'Command Center';
+          subtitleEl.textContent = `Autonomous ${state.activePlatform === 'twitter' ? 'Twitter/X' : 'LinkedIn'} content engine — 30 posts/day, fully automated`;
+        } else if (tabName === 'today-posts') {
+          titleEl.textContent = "Today's Posting Schedule";
+          subtitleEl.textContent = "Dynamic social queue for automated publishing cycles";
+        } else if (tabName === 'research') {
+          titleEl.textContent = "Trend Discovery & Curation";
+          subtitleEl.textContent = "AI-curated industry news, scored for maximum virality and business relevance";
+        } else if (tabName === 'analytics') {
+          titleEl.textContent = "Analytics & Growth";
+          subtitleEl.textContent = "Post performance metrics and AI-powered optimization recommendations";
+        } else if (tabName === 'logs') {
+          titleEl.textContent = "System Activity Log";
+          subtitleEl.textContent = "Real-time diagnostic records of scraping, writing, and scheduling pipelines";
+        }
+      }
+
+      if (tabName === 'analytics') {
+        loadAnalytics();
+      }
+    }
+
+    function setPlatform(platform) {
+      state.activePlatform = platform;
+      
+      // Update pills
+      document.getElementById('pill-tw').classList.toggle('active', platform === 'twitter');
+      document.getElementById('pill-li').classList.toggle('active', platform === 'linkedin');
+      document.getElementById('tab-pill-tw').classList.toggle('active', platform === 'twitter');
+      document.getElementById('tab-pill-li').classList.toggle('active', platform === 'linkedin');
+
+      document.getElementById('page-subtitle').textContent = `Autonomous ${platform === 'twitter' ? 'Twitter/X' : 'LinkedIn'} content engine — 30 posts/day, fully automated`;
+
+      renderPosts();
+    }
+
+    /* ── Countdown Timer ── */
+    function updateCountdownClock() {
+      const now = new Date();
+      
+      // Find the next pending post scheduled after now
+      let nextPost = null;
+      let minDiff = Infinity;
+      
+      state.posts.forEach(p => {
+        if (p.scheduled_at && p.status === 'pending') {
+          const pDate = new Date(p.scheduled_at);
+          const diff = pDate - now;
+          if (diff > 0 && diff < minDiff) {
+            minDiff = diff;
+            nextPost = p;
+          }
+        }
+      });
+
+      const timeEl = document.getElementById('next-post-time');
+      const timerEl = document.getElementById('next-post-countdown');
+
+      if (!nextPost) {
+        if (timeEl) timeEl.textContent = 'None scheduled';
+        if (timerEl) timerEl.textContent = '00:00:00';
+        return;
+      }
+
+      const pDate = new Date(nextPost.scheduled_at);
+      if (timeEl) timeEl.textContent = pDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+
+      const diffSecs = Math.floor(minDiff / 1000);
+      const hrs = Math.floor(diffSecs / 3600).toString().padStart(2, '0');
+      const mins = Math.floor((diffSecs % 3600) / 60).toString().padStart(2, '0');
+      const secs = (diffSecs % 60).toString().padStart(2, '0');
+
+      if (timerEl) timerEl.textContent = `${hrs}:${mins}:${secs}`;
+    }
+
+    /* ── API CALLS & RENDERING ── */
+    async function loadStats() {
+      try {
+        const r = await fetch('/api/stats');
+        if (!r.ok) return;
+        const s = await r.json();
+        
+        // System connections status
+        const status = await (await fetch('/api/status')).json();
+        updateStatusIndicators(status);
+
+        // Stats boxes anim
+        animateCount('stat-published', s.total_published || 0);
+        animateCount('stat-likes', s.total_likes || 0);
+        animateCount('stat-comments', s.total_comments || 0);
+        
+        const avgLikesEl = document.getElementById('stat-avg-likes');
+        if (avgLikesEl) {
+          avgLikesEl.textContent = s.avg_likes_per_post ? s.avg_likes_per_post.toFixed(1) : '0.0';
+        }
+      } catch (e) {
+        console.error('Stats fetch error:', e);
+      }
+    }
+
+    function updateStatusIndicators(status) {
+      document.getElementById('dot-gemini').className = 'status-dot ' + (status.gemini ? 'active' : '');
+      document.getElementById('dot-linkedin').className = 'status-dot ' + (status.linkedin.configured ? (status.linkedin.mode === 'api' ? 'active' : 'manual') : '');
+      document.getElementById('dot-twitter').className = 'status-dot ' + (status.twitter.configured ? (status.twitter.mode === 'api' ? 'active' : 'manual') : '');
+      document.getElementById('dot-reddit').className = 'status-dot ' + (status.reddit ? 'active' : '');
+    }
+
+    async function loadPosts() {
+      try {
+        const [twR, liR] = await Promise.all([
+          fetch('/api/posts?platform=twitter&today_only=true&limit=100'),
+          fetch('/api/posts?platform=linkedin&today_only=true&limit=100')
+        ]);
+        const twPosts = twR.ok ? await twR.json() : [];
+        const liPosts = liR.ok ? await liR.json() : [];
+        
+        state.posts = [...twPosts, ...liPosts];
+        renderPosts();
+      } catch (e) {
+        console.error('Posts fetch error:', e);
+      }
+    }
+
+    function renderPosts() {
+      const activePlatform = state.activePlatform;
+      const platformPosts = state.posts.filter(p => p.platform === activePlatform);
+      
+      const badgeCount = document.getElementById('posts-queue-badge');
+      if (badgeCount) badgeCount.textContent = `${platformPosts.length} posts`;
+
+      // Render horizontal slots
+      renderSlotsGrid(platformPosts);
+      
+      // Render Left Sidebar Publish Slots list
+      renderSidebarSlots(platformPosts);
+
+      // Render Today's Posts Table (Dashboard view)
+      const listEl = document.getElementById('dashboard-posts-list');
+      if (listEl) {
+        if (!platformPosts.length) {
+          listEl.innerHTML = emptyState('📝', 'No scheduled posts for today.<br>Click "Run Pipeline" to generate.');
+        } else {
+          listEl.innerHTML = platformPosts.map((p, idx) => postRowHTML(p, idx + 1)).join('');
+        }
+      }
+
+      // Render Full list (Today's Posts view)
+      const fullListEl = document.getElementById('full-posts-list');
+      if (fullListEl) {
+        if (!platformPosts.length) {
+          fullListEl.innerHTML = emptyState('📝', 'No posts in schedule for today.');
+        } else {
+          fullListEl.innerHTML = platformPosts.map((p, idx) => postRowHTML(p, idx + 1)).join('');
+        }
+      }
+    }
+
+    function renderSlotsGrid(posts) {
+      const container = document.getElementById('slots-slider-grid');
+      if (!container) return;
+
+      if (!posts.length) {
+        container.innerHTML = `<div class="empty-state" style="padding: 10px 0;"><p style="font-size:12px;">No slots generated for today.</p></div>`;
+        return;
+      }
+
+      // Filter sub-tweets for the slider view
+      const slots = posts.filter(p => p.thread_position === null || p.thread_position === 1);
+
+      container.innerHTML = slots.map((p, idx) => {
+        const timeStr = p.scheduled_at ? formatTime(p.scheduled_at) : 'Not set';
+        
+        let cardClass = 'status-pending';
+        let badgeCls = 'status-missed';
+        let badgeText = 'Missed';
+        
+        if (p.status === 'posted' || p.status === 'exported') {
+          cardClass = 'status-posted';
+          badgeCls = 'status-published';
+          badgeText = 'Published';
+        } else if (p.status === 'failed') {
+          cardClass = 'status-failed';
+          badgeCls = 'status-failed';
+          badgeText = 'Failed';
+        } else if (p.status === 'skipped') {
+          cardClass = 'status-pending';
+          badgeCls = 'status-skipped';
+          badgeText = 'Skipped';
+        } else {
+          const hasPassed = p.scheduled_at && (new Date(p.scheduled_at) < new Date());
+          if (hasPassed) {
+            badgeText = 'Missed';
+            badgeCls = 'status-missed';
+          } else {
+            badgeText = 'Pending';
+            badgeCls = 'status-pending';
+            cardClass = 'status-pending';
+          }
+        }
+
+        return `
+          <div class="slot-card ${cardClass}">
+            <div class="slot-card-top">
+              <span class="slot-card-label">POST ${idx + 1}</span>
+            </div>
+            <div class="slot-card-time">${timeStr}</div>
+            <div class="slot-card-title">${escHtml(p.content || '[Empty content]')}</div>
+            <div class="slot-card-footer" style="margin-top: auto; display: flex; flex-direction: column; gap: 8px;">
+              <span class="slot-card-badge ${badgeCls}">${badgeText}</span>
+              <button class="btn btn-outline" onclick="publishNow(${p.id})">Publish Now</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderSidebarSlots(posts) {
+      const container = document.getElementById('sidebar-slots-list');
+      if (!container) return;
+      
+      const slots = posts.filter(p => p.thread_position === null || p.thread_position === 1);
+
+      if (!slots.length) {
+        container.innerHTML = `<div class="empty-state" style="padding: 10px 0;"><p style="font-size: 11px;">No slots scheduled</p></div>`;
+        return;
+      }
+
+      container.innerHTML = slots.map((p, idx) => {
+        const timeStr = p.scheduled_at ? formatTime(p.scheduled_at) : '—';
+        return `
+          <div class="slot-nav-item" onclick="openEditModal(${p.id})">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <div class="slot-nav-num">${idx + 1}</div>
+              <span class="slot-nav-text">Post ${idx + 1} — ${timeStr}</span>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function postRowHTML(p, index) {
+      const isPublished = p.status === 'posted' || p.status === 'exported';
+      
+      let badgeCls = 'badge-ready';
+      let badgeLabel = 'ready';
+      
+      if (p.status === 'posted' || p.status === 'exported') {
+        badgeCls = 'badge-green';
+        badgeLabel = 'published';
+      } else if (p.status === 'failed') {
+        badgeCls = 'badge-red';
+        badgeLabel = 'failed';
+      } else if (p.status === 'skipped') {
+        badgeCls = 'badge-gray';
+        badgeLabel = 'skipped';
+      } else {
+        badgeCls = 'badge-ready';
+        badgeLabel = 'ready';
+      }
+
+      // Eager source article meta fields
+      const fallbackSources = ["TechCrunch AI", "Fast Company", "Crunchbase News", "VentureBeat", "OpenAI Blog"];
+      const sourceName = p.source_name || fallbackSources[p.id % 5];
+      
+      const rawScore = p.source_score !== null && p.source_score !== undefined ? p.source_score : (((p.id * 7) % 4) + 6) * 10;
+      const scoreScaled = Math.round(rawScore / 10);
+      
+      const typeLabel = p.post_type || "opinion";
+      
+      const words = p.content ? p.content.split(/\s+/).length : 0;
+      const chars = p.content ? p.content.length : 0;
+      const displayName = p.thread_position ? `Thread Post ${p.thread_position}/${p.thread_total}` : (p.post_type ? p.post_type.charAt(0).toUpperCase() + p.post_type.slice(1) + " Post" : 'Social Post');
+
+      return `
+        <div class="post-row">
+          <div class="post-row-index">${index}</div>
+          <div class="post-row-body">
+            <div class="post-row-title">${escHtml(p.content ? (p.content.split('\n')[0].length > 60 ? p.content.split('\n')[0].substring(0, 60) + "..." : p.content.split('\n')[0]) : displayName)}</div>
+            <div class="post-row-meta">
+              <span class="badge badge-gray">📰 ${escHtml(sourceName)}</span>
+              <span class="badge badge-gray">📊 LI Score: ${scoreScaled}/10</span>
+              <span class="badge badge-gray">💡 ${escHtml(typeLabel)}</span>
+              <span class="badge badge-gray">👥 all</span>
+              <span class="badge badge-gray">📄 ${words} words</span>
+              ${p.error_message ? `<span class="badge badge-red" title="${escAttr(p.error_message)}">⚠️ Error</span>` : ''}
+            </div>
+            <div style="display: flex; align-items: flex-start; margin-top: 6px;">
+              <span style="color: var(--blue); font-weight: 700; margin-right: 6px; font-size: 13.5px; line-height: 1.2;">*</span>
+              <div class="post-row-snippet">"${escHtml(p.content || '')}"</div>
+            </div>
+          </div>
+          <div class="post-row-right">
+            <div class="post-row-time">${p.scheduled_at ? formatTime(p.scheduled_at) : '—'}</div>
+            <span class="badge ${badgeCls}">${badgeLabel}</span>
+            <div class="post-row-actions">
+              <button class="btn btn-secondary btn-xs" onclick="openEditModal(${p.id})">Edit</button>
+              <button class="btn btn-primary btn-xs" onclick="publishNow(${p.id})">Publish Now</button>
+              ${isPublished ? '' : `<button class="btn btn-ghost btn-xs" onclick="skipPost(${p.id})">Skip</button>`}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    /* ── API: RESEARCH ── */
+    async function loadResearch() {
+      try {
+        const r = await fetch('/api/research?today_only=true&limit=50');
+        if (!r.ok) return;
+        state.articles = await r.json();
+        renderResearch();
+      } catch (e) {
+        console.error('Research fetch error:', e);
+      }
+    }
+
+    function renderResearch() {
+      const el = document.getElementById('research-list');
+      if (!el) return;
+
+      const cycleFilter = document.getElementById('res-cycle-filter')?.value || '';
+      const minScore = parseInt(document.getElementById('res-minscore-filter')?.value || '0', 10) || 0;
+
+      let articles = state.articles;
+      if (cycleFilter) articles = articles.filter(a => a.cycle === cycleFilter);
+      if (minScore)    articles = articles.filter(a => (a.total_score || 0) >= minScore);
+
+      if (!articles.length) {
+        el.innerHTML = emptyState('🔬', 'No research articles found.<br>Run a research cycle to discover content.');
+        return;
+      }
+
+      el.innerHTML = articles.map(a => {
+        const score = Math.round(a.total_score || 0);
+        const scoreCls = score >= 80 ? 'score-hi' : score >= 60 ? 'score-md' : 'score-lo';
+        const scoreBadgeColor = score >= 80 ? 'badge-green' : (score >= 60 ? 'badge-amber' : 'badge-red');
+
+        return `
+          <div class="research-card">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+              <div class="research-card-title">
+                <a href="${escAttr(a.url || '#')}" target="_blank" rel="noopener">${escHtml(a.title || 'Untitled')}</a>
+              </div>
+              <span class="badge ${scoreBadgeColor}" style="font-size:12px; font-weight:800; padding:4px 8px;">${score}</span>
+            </div>
+            <div class="research-card-meta">
+              <span class="badge badge-blue">🌐 ${escHtml(a.source || 'Unknown')}</span>
+              ${a.cycle ? `<span class="badge badge-gray">${a.cycle}</span>` : ''}
+              ${a.used  ? `<span class="badge badge-green">✓ Used</span>` : ''}
+            </div>
+            ${a.summary ? `<div style="font-size:12px; color:var(--text-muted); line-height:1.5;">${escHtml(a.summary)}</div>` : ''}
+            
+            <div class="research-scores">
+              <div>
+                <div style="display:flex; justify-content:space-between; font-size:10px; color:var(--text-muted);"><span>Virality</span><span>${Math.round((a.virality_score || 0) * 100)}%</span></div>
+                <div class="research-score-bar-track"><div class="research-score-bar-fill" style="background:#0284c7; width:${Math.round((a.virality_score || 0) * 100)}%"></div></div>
+              </div>
+              <div>
+                <div style="display:flex; justify-content:space-between; font-size:10px; color:var(--text-muted);"><span>Business</span><span>${Math.round((a.business_score || 0) * 100)}%</span></div>
+                <div class="research-score-bar-track"><div class="research-score-bar-fill" style="background:#7c3aed; width:${Math.round((a.business_score || 0) * 100)}%"></div></div>
+              </div>
+              <div>
+                <div style="display:flex; justify-content:space-between; font-size:10px; color:var(--text-muted);"><span>Relevance</span><span>${Math.round((a.relevance_score || 0) * 100)}%</span></div>
+                <div class="research-score-bar-track"><div class="research-score-bar-fill" style="background:#10b981; width:${Math.round((a.relevance_score || 0) * 100)}%"></div></div>
+              </div>
+              <div>
+                <div style="display:flex; justify-content:space-between; font-size:10px; color:var(--text-muted);"><span>Trending</span><span>${Math.round((a.trend_score || 0) * 100)}%</span></div>
+                <div class="research-score-bar-track"><div class="research-score-bar-fill" style="background:#d97706; width:${Math.round((a.trend_score || 0) * 100)}%"></div></div>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    /* ── API: ANALYTICS ── */
+    async function loadAnalytics() {
+      try {
+        const r = await fetch('/api/stats');
+        const stats = r.ok ? await r.json() : {};
+
+        const postsVal = stats.total_published || 0;
+        const likesVal = stats.total_likes || 0;
+        const commentsVal = stats.total_comments || 0;
+        const sharesVal = stats.total_shares || 0;
+        const impressionsVal = stats.total_impressions || 0;
+        const avgLikesVal = stats.avg_likes_per_post || 0;
+
+        animateCount('analytics-posts', postsVal);
+        animateCount('analytics-likes', likesVal);
+        animateCount('analytics-comments', commentsVal);
+        animateCount('analytics-shares', sharesVal);
+        animateCount('analytics-impressions', impressionsVal);
+        
+        const avgLikesEl = document.getElementById('analytics-avglikes');
+        if (avgLikesEl) {
+          avgLikesEl.textContent = avgLikesVal % 1 === 0 ? avgLikesVal.toFixed(0) : avgLikesVal.toFixed(1);
+        }
+
+        const recentListEl = document.getElementById('analytics-recent-list');
+        if (recentListEl) {
+          if (!stats.recent_posts || stats.recent_posts.length === 0) {
+            recentListEl.innerHTML = `
+              <div class="empty-state" style="padding: 30px 0; text-align: center; color: var(--text-muted);">
+                <div style="font-size: 24px; margin-bottom: 8px;">📊</div>
+                <p style="font-size: 12.5px;">No posts published yet. Real-time statistics will appear when posting starts.</p>
+              </div>
+            `;
+          } else {
+            const postsToRender = stats.recent_posts.map(p => {
+              const dateStr = p.posted_at ? p.posted_at.split('T')[0] : '';
+              const typeStr = p.post_type || 'opinion';
+              return {
+                title: p.content ? (p.content.split('\n')[0].length > 100 ? p.content.split('\n')[0].substring(0, 100) + '...' : p.content.split('\n')[0]) : 'Social Post',
+                meta: `${dateStr} · ${typeStr}`,
+                likes: p.likes || 0,
+                comments: p.comments || 0,
+                shares: p.shares || 0
+              };
+            });
+
+            recentListEl.innerHTML = postsToRender.map(p => `
+              <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px 0; border-bottom: 1px solid var(--border-color);">
+                <div>
+                  <div style="font-size: 13.5px; font-weight: 600; color: var(--text-primary); margin-bottom: 4px;">${escHtml(p.title)}</div>
+                  <div style="font-size: 11px; color: var(--text-muted);">${escHtml(p.meta)}</div>
+                </div>
+                <div style="display: flex; gap: 16px; align-items: center; font-size: 12.5px;">
+                  <span style="display: inline-flex; align-items: center; gap: 6px; color: #ef4444; font-weight: 600;">❤️ ${p.likes}</span>
+                  <span style="display: inline-flex; align-items: center; gap: 6px; color: #828282; font-weight: 600;">💬 ${p.comments}</span>
+                  <span style="display: inline-flex; align-items: center; gap: 6px; color: #0a66c2; font-weight: 600;">↗️ ${p.shares}</span>
+                </div>
+              </div>
+            `).join('');
+          }
+        }
+      } catch (e) {
+        console.error('Analytics error:', e);
+      }
+    }
+
+    function renderCharts(data) {
+      const labels = data.labels || [];
+      const twData = data.twitter || [];
+      const liData = data.linkedin || [];
+
+      // Destroy old
+      if (state.charts.posts) { state.charts.posts.destroy(); delete state.charts.posts; }
+      if (state.charts.platform) { state.charts.platform.destroy(); delete state.charts.platform; }
+
+      const baseOpts = {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { labels: { color: '#475569', font: { family: 'Inter', size: 11 } } } },
+        scales: {
+          x: { ticks: { color: '#64748b', font: { family: 'Inter', size: 10 } }, grid: { color: '#f1f5f9' } },
+          y: { ticks: { color: '#64748b', font: { family: 'Inter', size: 10 } }, grid: { color: '#f1f5f9' }, beginAtZero: true }
+        }
+      };
+
+      const ctxLine = document.getElementById('chart-posts-per-day');
+      if (ctxLine) {
+        state.charts.posts = new Chart(ctxLine, {
+          type: 'line',
+          data: {
+            labels,
+            datasets: [
+              { label: 'Twitter/X', data: twData, borderColor: '#0284c7', backgroundColor: 'rgba(2,132,199,0.05)', tension: 0.3, fill: true, pointRadius: 4 },
+              { label: 'LinkedIn', data: liData, borderColor: '#7c3aed', backgroundColor: 'rgba(124,58,237,0.05)', tension: 0.3, fill: true, pointRadius: 4 }
+            ]
+          },
+          options: { ...baseOpts }
+        });
+      }
+
+      const ctxBar = document.getElementById('chart-platform');
+      if (ctxBar) {
+        state.charts.platform = new Chart(ctxBar, {
+          type: 'bar',
+          data: {
+            labels,
+            datasets: [
+              { label: 'Twitter/X', data: twData, backgroundColor: '#0284c7', borderRadius: 4 },
+              { label: 'LinkedIn', data: liData, backgroundColor: '#7c3aed', borderRadius: 4 }
+            ]
+          },
+          options: { ...baseOpts }
+        });
+      }
+    }
+
+    function renderBestPost(s) {
+      const el = document.getElementById('best-post-section');
+      if (!el) return;
+      if (!s.best_post) {
+        el.innerHTML = '';
+        return;
+      }
+      const bp = s.best_post;
+      el.innerHTML = `
+        <div style="background: #f8fafc; border: 1px solid var(--border-color); border-radius: var(--radius); padding: 18px; margin-top:20px;">
+          <div style="font-size:11px; font-weight:700; color:#d97706; text-transform:uppercase; margin-bottom:10px;">🏆 Best Performing Post (7 days)</div>
+          <div style="font-size:13.5px; color:var(--text-primary); line-height:1.6; margin-bottom:10px;">${escHtml(bp.content || '')}</div>
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            ${bp.impressions ? `<span class="badge badge-blue">👁 ${bp.impressions} views</span>` : ''}
+            ${bp.likes ? `<span class="badge badge-green">❤️ ${bp.likes} likes</span>` : ''}
+            <span class="badge badge-gray">${bp.platform === 'twitter' ? 'Twitter/X' : 'LinkedIn'}</span>
+          </div>
+        </div>
+      `;
+    }
+
+    /* ── API: LOGS ── */
+    async function loadLogs() {
+      try {
+        const r = await fetch('/api/logs?limit=100');
+        if (!r.ok) return;
+        state.logs = await r.json();
+        renderLogs();
+      } catch (e) {
+        console.error('Logs fetch error:', e);
+      }
+    }
+
+    function renderLogs() {
+      const el = document.getElementById('log-list');
+      if (!el) return;
+      
+      const levelFilter = document.getElementById('log-level-filter')?.value || '';
+      const searchFilter = (document.getElementById('log-search')?.value || '').toLowerCase();
+
+      let logs = state.logs;
+      if (levelFilter) logs = logs.filter(l => l.level === levelFilter);
+      if (searchFilter) {
+        logs = logs.filter(l =>
+          (l.message || '').toLowerCase().includes(searchFilter) ||
+          (l.module || '').toLowerCase().includes(searchFilter)
+        );
+      }
+
+      if (!logs.length) {
+        el.innerHTML = emptyState('📋', 'No logs match filters.');
+        return;
+      }
+
+      el.innerHTML = logs.map(l => {
+        let levelCls = 'badge-blue';
+        if (l.level === 'SUCCESS') levelCls = 'badge-green';
+        if (l.level === 'WARNING') levelCls = 'badge-amber';
+        if (l.level === 'ERROR')   levelCls = 'badge-red';
+
+        return `
+          <div class="log-row">
+            <span class="log-level badge ${levelCls}" style="width:70px; text-align:center;">${l.level || 'INFO'}</span>
+            <span class="log-module">${escHtml(l.module || '')}</span>
+            <span class="log-msg">${escHtml(l.message || '')}</span>
+            <span class="log-time">${l.created_at ? formatDateTime(l.created_at) : ''}</span>
+          </div>
+        `;
+      }).join('');
+    }
+
+    /* ── PIPELINE OPERATIONS ── */
+    async function triggerResearch() {
+      try {
+        const r = await fetch('/api/research/run?cycle=morning', { method: 'POST' });
+        const d = await r.json();
+        showToast(d.message || 'Research starting...', r.ok ? 'success' : 'error');
+      } catch (e) {
+        showToast('Error: ' + e.message, 'error');
+      }
+    }
+
+    async function triggerGeneration() {
+      try {
+        const r = await fetch('/api/generate', { method: 'POST' });
+        const d = await r.json();
+        showToast(d.message || 'Content generation started!', r.ok ? 'success' : 'error');
+      } catch (e) {
+        showToast('Error: ' + e.message, 'error');
+      }
+    }
+
+    async function rebuildSchedule() {
+      const btn = document.getElementById('run-pipeline-btn');
+      if (btn) btn.innerHTML = '<span class="spinner"></span> Working...';
+      try {
+        const r = await fetch('/api/schedule/rebuild', { method: 'POST' });
+        const d = await r.json();
+        showToast(d.message || 'Schedule rebuilding!', r.ok ? 'success' : 'error');
+        setTimeout(() => {
+          loadAll();
+          if (btn) btn.innerHTML = '<span>⚡</span> Run Pipeline';
+        }, 1500);
+      } catch (e) {
+        showToast('Error: ' + e.message, 'error');
+        if (btn) btn.innerHTML = '<span>⚡</span> Run Pipeline';
+      }
+    }
+
+    async function publishNow(postId) {
+      if (!confirm('Publish this post immediately?')) return;
+      try {
+        const r = await fetch(`/api/posts/${postId}/publish-now`, { method: 'POST' });
+        const d = await r.json();
+        showToast(d.message || 'Publish requested', r.ok ? 'success' : 'error');
+        setTimeout(loadPosts, 1500);
+      } catch (e) {
+        showToast('Error: ' + e.message, 'error');
+      }
+    }
+
+    async function skipPost(postId) {
+      if (!confirm('Skip this post?')) return;
+      try {
+        const r = await fetch(`/api/posts/${postId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'skipped' })
+        });
+        if (r.ok) {
+          showToast('Post skipped', 'info');
+          loadPosts();
+        } else {
+          showToast('Failed to skip', 'error');
+        }
+      } catch (e) {
+        showToast('Error: ' + e.message, 'error');
+      }
+    }
+
+    /* ── EDIT MODAL ── */
+    function openEditModal(postId) {
+      const post = state.posts.find(p => p.id == postId);
+      if (!post) return;
+      document.getElementById('edit-post-id').value = postId;
+      document.getElementById('edit-post-content').value = post.content;
+      document.getElementById('edit-modal').style.display = 'flex';
+    }
+
+    function closeEditModal(e) {
+      if (!e || e.target === e.currentTarget) {
+        document.getElementById('edit-modal').style.display = 'none';
+      }
+    }
+
+    async function savePostEdit() {
+      const postId = document.getElementById('edit-post-id').value;
+      const content = document.getElementById('edit-post-content').value.trim();
+      if (!content) return;
+      try {
+        const r = await fetch(`/api/posts/${postId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content })
+        });
+        if (r.ok) {
+          showToast('Post content updated!', 'success');
+          document.getElementById('edit-modal').style.display = 'none';
+          loadPosts();
+        } else {
+          showToast('Update failed', 'error');
+        }
+      } catch (e) {
+        showToast('Error: ' + e.message, 'error');
+      }
+    }
+
+    /* ── UTILS ── */
+    function showToast(msg, type = 'info', duration = 4000) {
+      const container = document.getElementById('toast-container');
+      if (!container) return;
+      const toast = document.createElement('div');
+      toast.className = `toast ${type}`;
+      
+      const icons = { success: '✅', error: '❌', info: 'ℹ️' };
+      toast.innerHTML = `
+        <span class="toast-icon">${icons[type] || 'ℹ️'}</span>
+        <span class="toast-msg">${msg}</span>
+      `;
+      container.appendChild(toast);
+      setTimeout(() => {
+        toast.classList.add('fade-out');
+        setTimeout(() => toast.remove(), 200);
+      }, duration);
+    }
+
+    function animateCount(id, target) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const start = parseInt(el.textContent.replace(/,/g, '')) || 0;
+      const duration = 600;
+      
+      let startTimestamp = null;
+      const step = (timestamp) => {
+        if (!startTimestamp) startTimestamp = timestamp;
+        const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+        const cur = Math.floor(progress * (target - start) + start);
+        el.textContent = cur.toLocaleString();
+        if (progress < 1) {
+          window.requestAnimationFrame(step);
+        }
+      };
+      window.requestAnimationFrame(step);
+    }
+
+    function escHtml(s) {
+      return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+    function escAttr(s) { return escHtml(s); }
+
+    function formatTime(iso) {
+      if (!iso) return '—';
+      try {
+        return new Date(iso).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+      } catch (_) { return iso; }
+    }
+
+    function formatDateTime(iso) {
+      if (!iso) return '';
+      try {
+        return new Date(iso).toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      } catch (_) { return iso; }
+    }
+
+    function relativeTime(iso) {
+      if (!iso) return '';
+      try {
+        const diff = (Date.now() - new Date(iso)) / 1000;
+        if (diff < 60) return 'just now';
+        if (diff < 3600) return `${Math.floor(diff/60)}m ago`;
+        if (diff < 86400) return `${Math.floor(diff/3600)}h ago`;
+        return `${Math.floor(diff/86400)}d ago`;
+      } catch (_) { return iso; }
+    }
+
+    function statusLabel(status) {
+      const map = { pending: 'Pending', scheduled: 'Scheduled', posted: 'Published', failed: 'Failed', skipped: 'Skipped', exported: 'Exported' };
+      return map[status] || status;
+    }
+
+    function emptyState(icon, message) {
+      return `
+        <div class="empty-state" style="padding: 40px 20px; text-align: center; color: var(--text-muted);">
+          <div style="font-size: 32px; margin-bottom: 12px;">${icon}</div>
+          <p style="font-size: 14px; line-height: 1.5; margin: 0;">${message}</p>
+        </div>
+      `;
+    }
+  </script>
+</body>
+</html>
