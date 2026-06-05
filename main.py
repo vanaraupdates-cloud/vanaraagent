@@ -63,6 +63,19 @@ async def broadcast_event(event_type: str, data: dict):
 
 # ── App Lifecycle ─────────────────────────────────────────────
 
+async def run_initial_warmup():
+    """Run initial research and content generation if the database is empty."""
+    try:
+        from scheduler import run_morning_research, run_content_generation
+        logger.info("🆕 Running initial warmup research cycle...")
+        await run_morning_research()
+        logger.info("🆕 Running initial warmup content generation cycle...")
+        await run_content_generation()
+        logger.info("✅ Initial startup warmup complete.")
+    except Exception as e:
+        logger.error(f"Failed running initial warmup: {e}")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup and shutdown lifecycle."""
@@ -76,6 +89,14 @@ async def lifespan(app: FastAPI):
 
     # Start scheduler
     await start_scheduler()
+
+    # Auto-generate today's posts on first run if database is empty
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(select(func.count(Post.id)))
+        post_count = result.scalar()
+        if post_count == 0:
+            logger.info("🆕 Database is empty! Triggering startup warmup in background...")
+            asyncio.create_task(run_initial_warmup())
 
     logger.info(f"✅ Dashboard ready at http://localhost:{DASHBOARD_PORT}")
     if DRY_RUN:
