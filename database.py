@@ -190,8 +190,27 @@ async def get_db():
             await session.close()
 
 
-async def log_to_db(module: str, level: str, message: str):
-    """Quick helper to log events to DB (for dashboard display)."""
+async def log_to_db(arg1: str, arg2: str = None, arg3: str = None):
+    """
+    Quick helper to log events to DB (for dashboard display).
+    Supports 1, 2, or 3 arguments:
+    - 1 arg: message (defaults: module='system', level='INFO')
+    - 2 args: module, message (default: level='INFO')
+    - 3 args: module, level, message
+    """
+    if arg2 is None and arg3 is None:
+        module = "system"
+        level = "INFO"
+        message = arg1
+    elif arg3 is None:
+        module = arg1
+        level = "INFO"
+        message = arg2
+    else:
+        module = arg1
+        level = arg2
+        message = arg3
+
     async with AsyncSessionLocal() as session:
         entry = SystemLog(level=level, module=module, message=message)
         session.add(entry)

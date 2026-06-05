@@ -307,7 +307,7 @@ class TwitterAgent:
             logger.info("Tweet posted successfully. tweet_id=%s", tweet_id)
 
             await self._update_post_status(post_id, "posted", tweet_id)
-            await log_to_db(f"Tweet posted: id={tweet_id}")
+            await log_to_db("twitter_agent", "SUCCESS", f"Tweet posted: id={tweet_id}")
 
             return {"success": True, "tweet_id": tweet_id, "error": None}
 
@@ -318,11 +318,13 @@ class TwitterAgent:
 
             logger.error("Failed to post tweet: %s", exc, exc_info=True)
             await self._update_post_status(post_id, "failed", error_message=str(exc))
+            await log_to_db("twitter_agent", "ERROR", f"Failed to post tweet: {exc}")
             return {"success": False, "tweet_id": None, "error": str(exc)}
 
         except Exception as exc:
             logger.error("Unexpected error posting tweet: %s", exc, exc_info=True)
             await self._update_post_status(post_id, "failed", error_message=str(exc))
+            await log_to_db("twitter_agent", "ERROR", f"Unexpected error posting tweet: {exc}")
             return {"success": False, "tweet_id": None, "error": str(exc)}
 
     # ------------------------------------------------------------------
@@ -421,13 +423,14 @@ class TwitterAgent:
                             if rem_idx < len(post_ids):
                                 await self._update_post_status(post_ids[rem_idx], "failed", error_message=f"Aborted due to failure in preceding tweet: {exc}")
                     # Partial thread – surface what succeeded and what failed
+                    await log_to_db("twitter_agent", "ERROR", f"Failed posting thread at tweet {idx + 1}/{len(tweets)}: {exc}")
                     return {
                         "success": False,
                         "tweet_ids": tweet_ids,
                         "error": f"Failed at tweet {idx + 1}/{len(tweets)}: {exc}",
                     }
 
-            await log_to_db(f"Thread posted: {len(tweet_ids)} tweets, root={tweet_ids[0]}")
+            await log_to_db("twitter_agent", "SUCCESS", f"Thread posted: {len(tweet_ids)} tweets, root={tweet_ids[0]}")
             return {"success": True, "tweet_ids": tweet_ids, "error": None}
 
         except Exception as exc:
@@ -437,6 +440,7 @@ class TwitterAgent:
                 for idx, pid in enumerate(post_ids):
                     if idx >= len(tweet_ids):
                         await self._update_post_status(pid, "failed", error_message=str(exc))
+            await log_to_db("twitter_agent", "ERROR", f"Unexpected error posting thread: {exc}")
             return {
                 "success": False,
                 "tweet_ids": tweet_ids,
@@ -524,7 +528,7 @@ class TwitterAgent:
             logger.info("Poll posted successfully. tweet_id=%s", tweet_id)
 
             await self._update_post_status(post_id, "posted", tweet_id)
-            await log_to_db(f"Poll posted: id={tweet_id}, question={question!r}")
+            await log_to_db("twitter_agent", "SUCCESS", f"Poll posted: id={tweet_id}, question={question!r}")
 
             return {"success": True, "tweet_id": tweet_id, "error": None}
 
@@ -535,11 +539,13 @@ class TwitterAgent:
 
             logger.error("Failed to post poll: %s", exc, exc_info=True)
             await self._update_post_status(post_id, "failed", error_message=str(exc))
+            await log_to_db("twitter_agent", "ERROR", f"Failed to post poll: {exc}")
             return {"success": False, "tweet_id": None, "error": str(exc)}
 
         except Exception as exc:
             logger.error("Unexpected error posting poll: %s", exc, exc_info=True)
             await self._update_post_status(post_id, "failed", error_message=str(exc))
+            await log_to_db("twitter_agent", "ERROR", f"Unexpected error posting poll: {exc}")
             return {"success": False, "tweet_id": None, "error": str(exc)}
 
     # ------------------------------------------------------------------

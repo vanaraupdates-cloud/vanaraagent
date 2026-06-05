@@ -148,7 +148,8 @@ class LinkedInAgent:
                     await self._update_post_status(post_id, "posted", linkedin_post_id)
 
                 await log_to_db(
-                    "linkedin_post",
+                    "linkedin_agent",
+                    "SUCCESS",
                     f"Published LinkedIn post | db_id={post_id} | urn={linkedin_post_id}",
                 )
 
@@ -165,7 +166,8 @@ class LinkedInAgent:
                 if post_id:
                     await self._update_post_status(post_id, "failed", error_message=f"HTTP {response.status_code}: {error_body}")
                 await log_to_db(
-                    "linkedin_error",
+                    "linkedin_agent",
+                    "ERROR",
                     f"HTTP {response.status_code} when posting | db_id={post_id} | body={error_body[:500]}",
                 )
                 return {
@@ -179,6 +181,7 @@ class LinkedInAgent:
             logger.exception(msg)
             if post_id:
                 await self._update_post_status(post_id, "failed", error_message=msg)
+            await log_to_db("linkedin_agent", "ERROR", msg)
             return {"success": False, "post_id": None, "error": msg}
 
         except requests.exceptions.Timeout as exc:
@@ -186,6 +189,7 @@ class LinkedInAgent:
             logger.exception(msg)
             if post_id:
                 await self._update_post_status(post_id, "failed", error_message=msg)
+            await log_to_db("linkedin_agent", "ERROR", msg)
             return {"success": False, "post_id": None, "error": msg}
 
         except Exception as exc:
@@ -193,6 +197,7 @@ class LinkedInAgent:
             logger.exception(msg)
             if post_id:
                 await self._update_post_status(post_id, "failed", error_message=msg)
+            await log_to_db("linkedin_agent", "ERROR", msg)
             return {"success": False, "post_id": None, "error": msg}
 
     # ------------------------------------------------------------------

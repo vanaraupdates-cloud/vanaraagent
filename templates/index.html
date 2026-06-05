@@ -1416,6 +1416,7 @@
             <div class="slot-card-title">${escHtml(p.content || '[Empty content]')}</div>
             <div class="slot-card-footer" style="margin-top: auto; display: flex; flex-direction: column; gap: 8px;">
               <span class="slot-card-badge ${badgeCls}">${badgeText}</span>
+              ${p.error_message ? `<div class="slot-card-error-text" style="font-size: 10.5px; color: #dc2626; line-height: 1.25; font-weight: 600; min-height: 28px; word-break: break-word;" title="${escAttr(p.error_message)}">⚠️ ${escHtml(p.error_message.split('\n')[0])}</div>` : ''}
               <button class="btn btn-outline" onclick="publishNow(${p.id})">Publish Now</button>
             </div>
           </div>
