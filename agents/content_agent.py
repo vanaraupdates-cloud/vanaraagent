@@ -14,7 +14,8 @@ from typing import Optional
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from config import (AI_PROVIDER, GEMINI_API_KEY, OPENAI_API_KEY,
-                    OLLAMA_MODEL, OLLAMA_BASE_URL, DATA_DIR, DRY_RUN)
+                    OLLAMA_MODEL, OLLAMA_BASE_URL, DATA_DIR, DRY_RUN,
+                    DAILY_TWITTER_LIMIT, DAILY_LINKEDIN_LIMIT)
 from database import AsyncSessionLocal, Article, Post, log_to_db
 from services.deduplication import check_duplicate, save_content_hash, get_content_hash
 
@@ -360,16 +361,16 @@ async def generate_all_posts(articles: list[dict], cycle: str = "morning") -> di
             "status": "pending"
         }
 
-    # Generate exactly 30 posts
-    logger.info("Generating 30 unified posts for Twitter and LinkedIn...")
+    target_count = max(DAILY_TWITTER_LIMIT, DAILY_LINKEDIN_LIMIT)
+    logger.info(f"Generating unified posts (target={target_count})...")
     post_count = 0
     article_idx = 0
     
-    # Try generating until we have 30 posts or run out of attempts
+    # Try generating until we have target_count posts or run out of attempts
     max_attempts = 150
     attempts = 0
     
-    while post_count < 30 and attempts < max_attempts:
+    while post_count < target_count and attempts < max_attempts:
         attempts += 1
         art = articles[article_idx % len(articles)]
         article_idx += 1
@@ -389,15 +390,17 @@ async def generate_all_posts(articles: list[dict], cycle: str = "morning") -> di
             logger.warning(f"LLM output failed format validation, using fallback for: {art['title']}")
             content = generate_template_fallback(prompt)
             
-        # Try to make both Twitter and LinkedIn posts (deduped independently)
-        tw_post = await make_post(content, "twitter", "unified", art.get("id"))
-        li_post = await make_post(content, "linkedin", "unified", art.get("id"))
+        # Try to make both Twitter and LinkedIn posts (deduped independently) if enabled
+        tw_post = await make_post(content, "twitter", "unified", art.get("id")) if DAILY_TWITTER_LIMIT > 0 else None
+        li_post = await make_post(content, "linkedin", "unified", art.get("id")) if DAILY_LINKEDIN_LIMIT > 0 else None
         
-        if tw_post and li_post:
-            twitter_posts.append(tw_post)
-            linkedin_posts.append(li_post)
+        if (tw_post or DAILY_TWITTER_LIMIT == 0) and (li_post or DAILY_LINKEDIN_LIMIT == 0):
+            if tw_post:
+                twitter_posts.append(tw_post)
+            if li_post:
+                linkedin_posts.append(li_post)
             post_count += 1
-            logger.info(f"Generated unified post {post_count}/30 successfully.")
+            logger.info(f"Generated unified post {post_count}/{target_count} successfully.")
         else:
             logger.warning("Post was flagged as duplicate for one or more platforms, skipping.")
             

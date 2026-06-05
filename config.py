@@ -67,7 +67,8 @@ LOGS_DIR.mkdir(exist_ok=True)
 
 def is_twitter_configured() -> bool:
     return bool(TWITTER_API_KEY and TWITTER_API_SECRET and
-                TWITTER_ACCESS_TOKEN and TWITTER_ACCESS_SECRET)
+                TWITTER_ACCESS_TOKEN and TWITTER_ACCESS_SECRET and
+                DAILY_TWITTER_LIMIT > 0)
 
 def is_linkedin_configured() -> bool:
     return bool(LINKEDIN_ACCESS_TOKEN and LINKEDIN_PERSON_URN)

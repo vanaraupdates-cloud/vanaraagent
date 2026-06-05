@@ -1312,6 +1312,55 @@
       document.getElementById('dot-linkedin').className = 'status-dot ' + (status.linkedin.configured ? (status.linkedin.mode === 'api' ? 'active' : 'manual') : '');
       document.getElementById('dot-twitter').className = 'status-dot ' + (status.twitter.configured ? (status.twitter.mode === 'api' ? 'active' : 'manual') : '');
       document.getElementById('dot-reddit').className = 'status-dot ' + (status.reddit ? 'active' : '');
+
+      // Dynamically hide/show platform selector buttons based on config
+      const pillTw = document.getElementById('pill-tw');
+      const pillLi = document.getElementById('pill-li');
+      const tabPillTw = document.getElementById('tab-pill-tw');
+      const tabPillLi = document.getElementById('tab-pill-li');
+      
+      if (pillTw && pillLi) {
+        if (!status.twitter.configured) {
+          pillTw.style.display = 'none';
+          if (tabPillTw) tabPillTw.style.display = 'none';
+          if (state.activePlatform === 'twitter') {
+            setPlatform('linkedin');
+          }
+        } else {
+          pillTw.style.display = 'inline-block';
+          if (tabPillTw) tabPillTw.style.display = 'inline-block';
+        }
+        
+        if (!status.linkedin.configured) {
+          pillLi.style.display = 'none';
+          if (tabPillLi) tabPillLi.style.display = 'none';
+          if (state.activePlatform === 'linkedin') {
+            setPlatform('twitter');
+          }
+        } else {
+          pillLi.style.display = 'inline-block';
+          if (tabPillLi) tabPillLi.style.display = 'inline-block';
+        }
+        
+        // Hide platform selector entirely if only one is visible
+        const selector = document.querySelector('.platform-selector');
+        if (selector) {
+          if (!status.twitter.configured || !status.linkedin.configured) {
+            selector.style.display = 'none';
+          } else {
+            selector.style.display = 'flex';
+          }
+        }
+        // Also hide the selector in Today's Posts tab
+        const tabSelector = document.querySelector('#tab-today-posts .platform-selector');
+        if (tabSelector) {
+          if (!status.twitter.configured || !status.linkedin.configured) {
+            tabSelector.style.display = 'none';
+          } else {
+            tabSelector.style.display = 'flex';
+          }
+        }
+      }
     }
 
     async function loadPosts() {
