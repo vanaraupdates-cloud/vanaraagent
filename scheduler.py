@@ -110,29 +110,27 @@ async def schedule_todays_posts():
     today_end = today_start + timedelta(days=1)
 
     async with AsyncSessionLocal() as session:
-        # Get pending Twitter posts
+        # Get pending Twitter posts (both scheduled and unscheduled)
         twitter_result = await session.execute(
             select(Post).where(
                 and_(
                     Post.platform == "twitter",
                     Post.status == "pending",
                     Post.created_at >= today_start,
-                    Post.created_at < today_end,
-                    Post.scheduled_at.is_(None)
+                    Post.created_at < today_end
                 )
             ).order_by(Post.thread_id.asc().nullslast(), Post.thread_position.asc().nullslast(), Post.id.asc())
         )
         twitter_posts = twitter_result.scalars().all()
 
-        # Get pending LinkedIn posts
+        # Get pending LinkedIn posts (both scheduled and unscheduled)
         linkedin_result = await session.execute(
             select(Post).where(
                 and_(
                     Post.platform == "linkedin",
                     Post.status == "pending",
                     Post.created_at >= today_start,
-                    Post.created_at < today_end,
-                    Post.scheduled_at.is_(None)
+                    Post.created_at < today_end
                 )
             ).order_by(Post.id.asc())
         )
@@ -141,76 +139,111 @@ async def schedule_todays_posts():
     # Filter twitter posts to only schedule jobs for slots (thread root or standalone)
     twitter_slots = [p for p in twitter_posts if p.thread_position is None or p.thread_position == 1]
 
-    # Generate schedules using slot times
+    # Find posts that have no scheduled_at yet
+    unassigned_twitter = [p for p in twitter_slots if p.scheduled_at is None]
+    unassigned_linkedin = [p for p in linkedin_posts if p.scheduled_at is None]
+
+    # Generate schedules using slot times for the unassigned posts
     twitter_schedule = generate_dynamic_schedule(
         TWITTER_WINDOW_START, TWITTER_WINDOW_END,
-        len(twitter_slots)
+        len(unassigned_twitter)
     )
     linkedin_schedule = generate_dynamic_schedule(
         LINKEDIN_WINDOW_START, LINKEDIN_WINDOW_END,
-        len(linkedin_posts)
+        len(unassigned_linkedin)
     )
 
     # Assign times and commit to DB first (releasing SQLite lock)
     async with AsyncSessionLocal() as session:
-        for i, post in enumerate(twitter_slots):
+        for i, post in enumerate(unassigned_twitter):
             if i < len(twitter_schedule):
                 post_time = twitter_schedule[i]
                 if post_time <= datetime.now():
                     post_time = post_time + timedelta(days=1)
-                post.scheduled_at = post_time
-                session.add(post)
+                
+                # Fetch fresh instance from session to avoid attachment errors
+                db_post = await session.get(Post, post.id)
+                db_post.scheduled_at = post_time
+                session.add(db_post)
 
                 # Set sub-tweets of this thread to the exact same schedule time
                 if post.post_type == "thread" and post.thread_id is not None:
                     for sub_post in twitter_posts:
                         if sub_post.thread_id == post.thread_id and sub_post.thread_position > 1:
-                            sub_post.scheduled_at = post_time
-                            session.add(sub_post)
+                            db_sub = await session.get(Post, sub_post.id)
+                            db_sub.scheduled_at = post_time
+                            session.add(db_sub)
 
-        for i, post in enumerate(linkedin_posts):
+        for i, post in enumerate(unassigned_linkedin):
             if i < len(linkedin_schedule):
                 post_time = linkedin_schedule[i]
                 if post_time <= datetime.now():
                     post_time = post_time + timedelta(days=1)
-                post.scheduled_at = post_time
-                session.add(post)
+                
+                db_post = await session.get(Post, post.id)
+                db_post.scheduled_at = post_time
+                session.add(db_post)
 
         await session.commit()
 
+    # Refresh the lists from DB to ensure we have all scheduled_at times
+    async with AsyncSessionLocal() as session:
+        twitter_result = await session.execute(
+            select(Post).where(
+                and_(
+                    Post.platform == "twitter",
+                    Post.status == "pending",
+                    Post.created_at >= today_start,
+                    Post.created_at < today_end
+                )
+            ).order_by(Post.thread_id.asc().nullslast(), Post.thread_position.asc().nullslast(), Post.id.asc())
+        )
+        twitter_posts = twitter_result.scalars().all()
+        twitter_slots = [p for p in twitter_posts if p.thread_position is None or p.thread_position == 1]
+
+        linkedin_result = await session.execute(
+            select(Post).where(
+                and_(
+                    Post.platform == "linkedin",
+                    Post.status == "pending",
+                    Post.created_at >= today_start,
+                    Post.created_at < today_end
+                )
+            ).order_by(Post.id.asc())
+        )
+        linkedin_posts = linkedin_result.scalars().all()
+
     # Now that the DB transaction is closed, schedule jobs safely
     if scheduler:
-        for i, post in enumerate(twitter_slots):
-            if i < len(twitter_schedule):
-                post_time = post.scheduled_at
-                if not DRY_RUN and post_time > datetime.now():
-                    job_id = f"twitter_post_{post.id}_{today}"
-                    try:
-                        scheduler.add_job(
-                            publish_twitter_post,
-                            trigger=DateTrigger(run_date=post_time),
-                            args=[post.id],
-                            id=job_id,
-                            replace_existing=True
-                        )
-                    except Exception as e:
-                        logger.warning(f"Could not schedule job {job_id}: {e}")
+        for post in twitter_slots:
+            post_time = post.scheduled_at
+            if post_time and not DRY_RUN and post_time > datetime.now():
+                job_id = f"twitter_post_{post.id}_{today}"
+                try:
+                    scheduler.add_job(
+                        publish_twitter_post,
+                        trigger=DateTrigger(run_date=post_time),
+                        args=[post.id],
+                        id=job_id,
+                        replace_existing=True
+                    )
+                except Exception as e:
+                    logger.warning(f"Could not schedule job {job_id}: {e}")
 
-        for i, post in enumerate(linkedin_posts):
-            if i < len(linkedin_schedule):
-                post_time = post.scheduled_at
-                if not DRY_RUN and post_time > datetime.now():
-                    job_id = f"linkedin_post_{post.id}_{today}"
-                    try:
-                        scheduler.add_job(
-                            publish_linkedin_post,
-                            trigger=DateTrigger(run_date=post_time),
-                            args=[post.id],
-                            id=job_id,
-                            replace_existing=True
-                        )
-                    except Exception as e:
-                        logger.warning(f"Could not schedule job {job_id}: {e}")
+        for post in linkedin_posts:
+            post_time = post.scheduled_at
+            if post_time and not DRY_RUN and post_time > datetime.now():
+                job_id = f"linkedin_post_{post.id}_{today}"
+                try:
+                    scheduler.add_job(
+                        publish_linkedin_post,
+                        trigger=DateTrigger(run_date=post_time),
+                        args=[post.id],
+                        id=job_id,
+                        replace_existing=True
+                    )
+                except Exception as e:
+                    logger.warning(f"Could not schedule job {job_id}: {e}")
     else:
         logger.warning("Scheduler is not active. Today's posts have been saved to the DB but not scheduled in memory.")
 
