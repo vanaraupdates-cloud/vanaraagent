@@ -38,8 +38,6 @@ class LinkedInAgent:
         """Initialise the requests session with the LinkedIn Bearer token and store the person URN."""
         self.access_token = LINKEDIN_ACCESS_TOKEN
         self.person_urn = LINKEDIN_PERSON_URN
-        if self.person_urn and self.person_urn.startswith("urn:li:person:"):
-            self.person_urn = self.person_urn.replace("urn:li:person:", "urn:li:member:")
         self.mode = LINKEDIN_MODE          # 'auto' | 'manual'
         self.dry_run = DRY_RUN             # True → never call real API
 
@@ -71,7 +69,7 @@ class LinkedInAgent:
     # ------------------------------------------------------------------
 
     async def post_text(self, content: str, post_id: int = None) -> dict:
-        """Post a text-only update to LinkedIn via the ugcPosts endpoint.
+        """Post a text-only update to LinkedIn via the rest/posts endpoint.
 
         In manual mode or when DRY_RUN is enabled the API call is skipped and
         the post is saved to the export queue instead.
@@ -106,30 +104,30 @@ class LinkedInAgent:
                 await self._update_post_status(post_id, "failed", error_message=error_msg)
             return {"success": False, "post_id": None, "error": error_msg}
 
-        # ---- build UGC payload ----
+        # ---- build REST posts payload ----
         payload = {
             "author": self.person_urn,
+            "commentary": content,
+            "visibility": "PUBLIC",
+            "distribution": {
+                "feedDistribution": "MAIN_FEED",
+                "targetEntities": [],
+                "thirdPartyDistributionChannels": []
+            },
             "lifecycleState": "PUBLISHED",
-            "specificContent": {
-                "com.linkedin.ugc.ShareContent": {
-                    "shareCommentary": {"text": content},
-                    "shareMediaCategory": "NONE",
-                }
-            },
-            "visibility": {
-                "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"
-            },
+            "isReshareDisabledByAuthor": False
         }
 
-        url = f"{self.BASE_URL}/ugcPosts"
+        url = "https://api.linkedin.com/rest/posts"
 
         try:
-            logger.info("Posting to LinkedIn ugcPosts endpoint...")
+            logger.info("Posting to LinkedIn rest/posts endpoint...")
 
             # Run sync requests call in a thread so we don't block the event loop
             loop = asyncio.get_event_loop()
+            headers = {"LinkedIn-Version": "202605"}
             response = await loop.run_in_executor(
-                None, lambda: self.session.post(url, json=payload)
+                None, lambda: self.session.post(url, json=payload, headers=headers)
             )
 
             if response.status_code in (200, 201):
