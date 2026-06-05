@@ -90,13 +90,16 @@ async def lifespan(app: FastAPI):
     # Start scheduler
     await start_scheduler()
 
-    # Auto-generate today's posts on first run if database is empty
+    # Auto-generate today's posts on first run if database is empty, otherwise rebuild scheduling queue
     async with AsyncSessionLocal() as session:
         result = await session.execute(select(func.count(Post.id)))
         post_count = result.scalar()
         if post_count == 0:
             logger.info("🆕 Database is empty! Triggering startup warmup in background...")
             asyncio.create_task(run_initial_warmup())
+        else:
+            logger.info("📅 Database contains posts. Rebuilding scheduler queue in background...")
+            asyncio.create_task(schedule_todays_posts())
 
     logger.info(f"✅ Dashboard ready at http://localhost:{DASHBOARD_PORT}")
     if DRY_RUN:
