@@ -1,6 +1,6 @@
 """
 agents/content_agent.py — AI Content Generation Engine
-Generates all 30 Twitter + 10 LinkedIn posts using LLM
+Generates LinkedIn posts using LLM
 """
 import asyncio
 import json
@@ -15,7 +15,7 @@ from typing import Optional
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from config import (AI_PROVIDER, GEMINI_API_KEY, OPENAI_API_KEY,
                     OLLAMA_MODEL, OLLAMA_BASE_URL, DATA_DIR, DRY_RUN,
-                    DAILY_TWITTER_LIMIT, DAILY_LINKEDIN_LIMIT)
+                    DAILY_LINKEDIN_LIMIT)
 from database import AsyncSessionLocal, Article, Post, log_to_db
 from services.deduplication import check_duplicate, save_content_hash, get_content_hash
 
@@ -312,8 +312,8 @@ RULES:
 
 async def generate_all_posts(articles: list[dict], cycle: str = "morning") -> dict:
     """
-    Master function — generates exactly 30 Twitter + 30 LinkedIn posts in the unified template format.
-    Returns dict with twitter_posts list and linkedin_posts list.
+    Master function — generates LinkedIn posts in the unified template format.
+    Returns dict with linkedin_posts list.
     """
     logger.info(f"🧠 Starting content generation for {cycle} cycle ({len(articles)} articles)")
     await log_to_db("content_agent", "INFO", f"Content generation started — {len(articles)} source articles")
@@ -331,7 +331,6 @@ async def generate_all_posts(articles: list[dict], cycle: str = "morning") -> di
     # Sort by score, best articles first
     articles = sorted(articles, key=lambda x: x.get("total_score", 0), reverse=True)
 
-    twitter_posts = []
     linkedin_posts = []
 
     # Reset hook tracker for new day
@@ -361,7 +360,7 @@ async def generate_all_posts(articles: list[dict], cycle: str = "morning") -> di
             "status": "pending"
         }
 
-    target_count = max(DAILY_TWITTER_LIMIT, DAILY_LINKEDIN_LIMIT)
+    target_count = DAILY_LINKEDIN_LIMIT
     logger.info(f"Generating unified posts (target={target_count})...")
     post_count = 0
     article_idx = 0
@@ -390,36 +389,29 @@ async def generate_all_posts(articles: list[dict], cycle: str = "morning") -> di
             logger.warning(f"LLM output failed format validation, using fallback for: {art['title']}")
             content = generate_template_fallback(prompt)
             
-        # Try to make both Twitter and LinkedIn posts (deduped independently) if enabled
-        tw_post = await make_post(content, "twitter", "unified", art.get("id")) if DAILY_TWITTER_LIMIT > 0 else None
-        li_post = await make_post(content, "linkedin", "unified", art.get("id")) if DAILY_LINKEDIN_LIMIT > 0 else None
+        li_post = await make_post(content, "linkedin", "unified", art.get("id"))
         
-        if (tw_post or DAILY_TWITTER_LIMIT == 0) and (li_post or DAILY_LINKEDIN_LIMIT == 0):
-            if tw_post:
-                twitter_posts.append(tw_post)
-            if li_post:
-                linkedin_posts.append(li_post)
+        if li_post:
+            linkedin_posts.append(li_post)
             post_count += 1
             logger.info(f"Generated unified post {post_count}/{target_count} successfully.")
         else:
-            logger.warning("Post was flagged as duplicate for one or more platforms, skipping.")
+            logger.warning("Post was flagged as duplicate, skipping.")
             
         await asyncio.sleep(0.5)  # Gentle API spacing
 
-    logger.info(f"✅ Content generation complete. Generated {len(twitter_posts)} Twitter + {len(linkedin_posts)} LinkedIn posts")
-    await log_to_db("content_agent", "SUCCESS", f"Generated {len(twitter_posts)} Twitter + {len(linkedin_posts)} LinkedIn posts")
+    logger.info(f"✅ Content generation complete. Generated {len(linkedin_posts)} LinkedIn posts")
+    await log_to_db("content_agent", "SUCCESS", f"Generated {len(linkedin_posts)} LinkedIn posts")
 
     return {
-        "twitter": twitter_posts,
         "linkedin": linkedin_posts,
         "generated_at": datetime.utcnow().isoformat(),
         "cycle": cycle
     }
 
 
-async def save_posts_to_db(posts_data: dict) -> tuple[int, int]:
-    """Save generated posts to the database. Returns (twitter_count, linkedin_count)."""
-    twitter_saved = 0
+async def save_posts_to_db(posts_data: dict) -> int:
+    """Save generated posts to the database. Returns linkedin_count."""
     linkedin_saved = 0
 
     async with AsyncSessionLocal() as session:
@@ -438,12 +430,6 @@ async def save_posts_to_db(posts_data: dict) -> tuple[int, int]:
             )
         )
 
-        for post_data in posts_data.get("twitter", []):
-            post = Post(**{k: v for k, v in post_data.items()
-                          if k in Post.__table__.columns.keys()})
-            session.add(post)
-            twitter_saved += 1
-
         for post_data in posts_data.get("linkedin", []):
             post = Post(**{k: v for k, v in post_data.items()
                           if k in Post.__table__.columns.keys()})
@@ -456,7 +442,7 @@ async def save_posts_to_db(posts_data: dict) -> tuple[int, int]:
             await session.rollback()
             logger.error(f"Failed to save posts: {e}")
 
-    return twitter_saved, linkedin_saved
+    return linkedin_saved
 
 
 if __name__ == "__main__":
@@ -487,10 +473,7 @@ if __name__ == "__main__":
 
     async def test():
         posts = await generate_all_posts(test_articles, "morning")
-        print(f"\n[OK] Twitter posts: {len(posts['twitter'])}")
         print(f"[OK] LinkedIn posts: {len(posts['linkedin'])}")
-        if posts['twitter']:
-            print(f"\nSample Twitter post:\n{posts['twitter'][0]['content']}")
         if posts['linkedin']:
             print(f"\nSample LinkedIn post:\n{posts['linkedin'][0]['content']}")
 

@@ -47,12 +47,7 @@ async def pull_all_analytics():
     logger.info(f"Fetching analytics for {len(posts)} posts...")
 
     # Separate by platform
-    twitter_posts = [p for p in posts if p.platform == "twitter"]
     linkedin_posts = [p for p in posts if p.platform == "linkedin"]
-
-    # Twitter analytics
-    if twitter_posts:
-        await _pull_twitter_analytics(twitter_posts)
 
     # LinkedIn analytics
     if linkedin_posts:
@@ -62,45 +57,6 @@ async def pull_all_analytics():
     await log_to_db("analytics", "SUCCESS", f"Analytics pulled for {len(posts)} posts")
 
 
-async def _pull_twitter_analytics(posts: list):
-    """Fetch Twitter metrics for a batch of posts."""
-    try:
-        from agents.twitter_agent import twitter_agent
-        if not twitter_agent.is_configured():
-            return
-
-        tweet_ids = [p.platform_post_id for p in posts if p.platform_post_id]
-        if not tweet_ids:
-            return
-
-        metrics_list = await twitter_agent.get_multiple_metrics(tweet_ids)
-
-        async with AsyncSessionLocal() as session:
-            for post, metrics in zip(posts, metrics_list):
-                if not metrics:
-                    continue
-
-                result = await session.execute(
-                    select(PostAnalytics).where(PostAnalytics.post_id == post.id)
-                )
-                analytics = result.scalar_one_or_none()
-
-                if not analytics:
-                    analytics = PostAnalytics(post_id=post.id)
-                    session.add(analytics)
-
-                analytics.impressions = metrics.get("impressions", 0)
-                analytics.likes      = metrics.get("like_count", 0)
-                analytics.reposts    = metrics.get("retweet_count", 0)
-                analytics.replies    = metrics.get("reply_count", 0)
-                analytics.bookmarks  = metrics.get("bookmark_count", 0)
-                analytics.updated_at = datetime.utcnow()
-
-            await session.commit()
-        logger.info(f"✅ Twitter analytics saved for {len(posts)} posts")
-
-    except Exception as e:
-        logger.error(f"Twitter analytics pull failed: {e}")
 
 
 async def _pull_linkedin_analytics(posts: list):
@@ -180,16 +136,10 @@ async def run_learning_loop():
     def engagement_score(analytics) -> float:
         if not analytics:
             return 0.0
-        tw = (analytics.impressions or 0) * 0.001 + \
-             (analytics.likes or 0) * 2 + \
-             (analytics.reposts or 0) * 3 + \
-             (analytics.replies or 0) * 2.5 + \
-             (analytics.bookmarks or 0) * 4
-        li = (analytics.reach or 0) * 0.001 + \
-             (analytics.likes or 0) * 2 + \
-             (analytics.comments or 0) * 5 + \
-             (analytics.shares or 0) * 4
-        return tw + li
+        return (analytics.reach or 0) * 0.001 + \
+               (analytics.likes or 0) * 2 + \
+               (analytics.comments or 0) * 5 + \
+               (analytics.shares or 0) * 4
 
     scored_posts = [(post, analytics, engagement_score(analytics)) for post, analytics in rows]
     scored_posts.sort(key=lambda x: x[2], reverse=True)
@@ -230,7 +180,7 @@ async def run_learning_loop():
 
     # Save to learning_preferences
     async with AsyncSessionLocal() as session:
-        for platform in ["twitter", "linkedin"]:
+        for platform in ["linkedin"]:
             pref = LearningPreference(
                 date=str(yesterday),
                 platform=platform,
@@ -317,7 +267,6 @@ async def get_dashboard_stats() -> dict:
 
     stats = {
         "today": {
-            "twitter": {"posted": 0, "pending": 0, "failed": 0, "total": 0},
             "linkedin": {"posted": 0, "pending": 0, "failed": 0, "total": 0},
         },
         "impressions": int(totals[0] or 0),
@@ -382,13 +331,11 @@ async def get_analytics_chart_data(days: int = 7) -> dict:
         )
         rows = result.all()
 
-    chart_data = {"labels": [], "twitter": [], "linkedin": [], "impressions": [], "likes": []}
+    chart_data = {"labels": [], "linkedin": [], "impressions": [], "likes": []}
     for row in rows:
         label = str(row.day)
         if label not in chart_data["labels"]:
             chart_data["labels"].append(label)
-        if row.platform == "twitter":
-            chart_data["twitter"].append({"day": label, "posts": row.posts, "impressions": row.impressions or 0})
         elif row.platform == "linkedin":
             chart_data["linkedin"].append({"day": label, "posts": row.posts, "impressions": row.impressions or 0})
 

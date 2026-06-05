@@ -15,13 +15,6 @@ OPENAI_API_KEY   = os.getenv("OPENAI_API_KEY", "")
 OLLAMA_MODEL     = os.getenv("OLLAMA_MODEL", "llama3.3")
 OLLAMA_BASE_URL  = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 
-# ── Twitter ──────────────────────────────────────────────────
-TWITTER_API_KEY       = os.getenv("TWITTER_API_KEY", "")
-TWITTER_API_SECRET    = os.getenv("TWITTER_API_SECRET", "")
-TWITTER_ACCESS_TOKEN  = os.getenv("TWITTER_ACCESS_TOKEN", "")
-TWITTER_ACCESS_SECRET = os.getenv("TWITTER_ACCESS_SECRET", "")
-TWITTER_BEARER_TOKEN  = os.getenv("TWITTER_BEARER_TOKEN", "")
-TWITTER_MODE          = os.getenv("TWITTER_MODE", "manual")  # api | playwright | manual
 
 # ── LinkedIn ─────────────────────────────────────────────────
 LINKEDIN_ACCESS_TOKEN = os.getenv("LINKEDIN_ACCESS_TOKEN", "")
@@ -37,11 +30,8 @@ REDDIT_USER_AGENT    = os.getenv("REDDIT_USER_AGENT", "AINewsAgent/1.0")
 NEWS_API_KEY = os.getenv("NEWS_API_KEY", "")
 
 # ── Posting Schedule ────────────────────────────────────────
-DAILY_TWITTER_LIMIT  = int(os.getenv("DAILY_TWITTER_LIMIT", "30"))
 DAILY_LINKEDIN_LIMIT = int(os.getenv("DAILY_LINKEDIN_LIMIT", "30"))
 
-TWITTER_WINDOW_START = os.getenv("TWITTER_POST_WINDOW_START", "09:00")
-TWITTER_WINDOW_END   = os.getenv("TWITTER_POST_WINDOW_END", "15:58")
 LINKEDIN_WINDOW_START = os.getenv("LINKEDIN_POST_WINDOW_START", "09:00")
 LINKEDIN_WINDOW_END   = os.getenv("LINKEDIN_POST_WINDOW_END", "15:58")
 
@@ -65,10 +55,6 @@ LOGS_DIR = BASE_DIR / "logs"
 DATA_DIR.mkdir(exist_ok=True)
 LOGS_DIR.mkdir(exist_ok=True)
 
-def is_twitter_configured() -> bool:
-    return bool(TWITTER_API_KEY and TWITTER_API_SECRET and
-                TWITTER_ACCESS_TOKEN and TWITTER_ACCESS_SECRET and
-                DAILY_TWITTER_LIMIT > 0)
 
 def is_linkedin_configured() -> bool:
     return bool(LINKEDIN_ACCESS_TOKEN and LINKEDIN_PERSON_URN)

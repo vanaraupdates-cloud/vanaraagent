@@ -289,102 +289,6 @@ async def get_posts(
     } for p in posts])
 
 
-async def sync_post_edits(session: AsyncSession, post: Post, updated_content: str):
-    """
-    Synchronizes content changes across platforms:
-    - If a Twitter post is edited, update its corresponding LinkedIn post.
-    - If a LinkedIn post is edited, update its corresponding Twitter post(s).
-    """
-    from services.deduplication import get_content_hash
-    import hashlib
-
-    # 1. Twitter -> LinkedIn Sync
-    if post.platform == "twitter":
-        if post.post_type == "thread" and post.thread_id is not None:
-            # First, fetch all tweets in this thread from the DB
-            result = await session.execute(
-                select(Post)
-                .where(Post.thread_id == post.thread_id, Post.platform == "twitter")
-                .order_by(Post.thread_position.asc())
-            )
-            thread_tweets = result.scalars().all()
-            
-            # Map tweet contents, replacing the edited one with the updated content
-            combined_content = "\n\n".join([
-                t.content if t.id != post.id else updated_content
-                for t in thread_tweets
-            ])
-            
-            # Find the corresponding LinkedIn combined thread post by scheduled_at and source_article_id
-            conditions = [Post.platform == "linkedin", Post.post_type == "thread_combined"]
-            if post.scheduled_at:
-                conditions.append(Post.scheduled_at == post.scheduled_at)
-            if post.source_article_id:
-                conditions.append(Post.source_article_id == post.source_article_id)
-            
-            li_result = await session.execute(select(Post).where(and_(*conditions)))
-            li_post = li_result.scalars().first()
-            if li_post:
-                li_post.content = combined_content
-                li_post.content_hash = hashlib.sha256(f"linkedin:{combined_content}".encode('utf-8')).hexdigest()
-                session.add(li_post)
-        else:
-            # Standalone Twitter post -> find matching LinkedIn post
-            conditions = [Post.platform == "linkedin"]
-            logger.info(f"[SYNC] Twitter edit: ID={post.id}, scheduled_at={post.scheduled_at}, source_article_id={post.source_article_id}")
-            if post.scheduled_at:
-                conditions.append(Post.scheduled_at == post.scheduled_at)
-            if post.source_article_id:
-                conditions.append(Post.source_article_id == post.source_article_id)
-            
-            li_result = await session.execute(select(Post).where(and_(*conditions)))
-            li_post = li_result.scalars().first()
-            if li_post:
-                logger.info(f"[SYNC] Matched LinkedIn post ID={li_post.id} for sync.")
-                li_post.content = updated_content
-                li_post.content_hash = hashlib.sha256(f"linkedin:{updated_content}".encode('utf-8')).hexdigest()
-                session.add(li_post)
-            else:
-                logger.warning(f"[SYNC] No matching LinkedIn post found for scheduled_at={post.scheduled_at}, source_article_id={post.source_article_id}")
-
-    # 2. LinkedIn -> Twitter Sync
-    elif post.platform == "linkedin":
-        if post.post_type == "thread_combined":
-            # Split LinkedIn combined post by double newline
-            paragraphs = [p.strip() for p in updated_content.split("\n\n") if p.strip()]
-            
-            # Find the corresponding Twitter thread tweets
-            conditions = [Post.platform == "twitter", Post.post_type == "thread"]
-            if post.scheduled_at:
-                conditions.append(Post.scheduled_at == post.scheduled_at)
-            if post.source_article_id:
-                conditions.append(Post.source_article_id == post.source_article_id)
-                
-            tw_result = await session.execute(
-                select(Post).where(and_(*conditions)).order_by(Post.thread_position.asc())
-            )
-            thread_tweets = tw_result.scalars().all()
-            
-            # Update each tweet in the thread with its corresponding paragraph
-            for i, tweet in enumerate(thread_tweets):
-                if i < len(paragraphs):
-                    tweet.content = paragraphs[i]
-                    tweet.content_hash = get_content_hash(paragraphs[i])
-                    session.add(tweet)
-        else:
-            # Standalone LinkedIn post -> find matching Twitter post
-            conditions = [Post.platform == "twitter"]
-            if post.scheduled_at:
-                conditions.append(Post.scheduled_at == post.scheduled_at)
-            if post.source_article_id:
-                conditions.append(Post.source_article_id == post.source_article_id)
-                
-            tw_result = await session.execute(select(Post).where(and_(*conditions)))
-            tw_post = tw_result.scalars().first()
-            if tw_post:
-                tw_post.content = updated_content
-                tw_post.content_hash = get_content_hash(updated_content)
-                session.add(tw_post)
 
 
 @app.patch("/api/posts/{post_id}")
@@ -397,9 +301,6 @@ async def update_post(post_id: int, update_data: PostUpdate):
             raise HTTPException(status_code=404, detail="Post not found")
 
         if update_data.content is not None:
-            # Sync edits to other platform first
-            await sync_post_edits(session, post, update_data.content)
-            
             # Update current post content and hash
             post.content = update_data.content
             from services.deduplication import get_content_hash
@@ -432,7 +333,7 @@ async def delete_post(post_id: int):
 @app.post("/api/posts/{post_id}/publish-now")
 async def publish_now(post_id: int, background_tasks: BackgroundTasks):
     """Manually trigger immediate publishing of a post."""
-    from scheduler import publish_twitter_post, publish_linkedin_post
+    from scheduler import publish_linkedin_post
 
     async with AsyncSessionLocal() as session:
         result = await session.execute(select(Post).where(Post.id == post_id))
@@ -441,12 +342,11 @@ async def publish_now(post_id: int, background_tasks: BackgroundTasks):
             raise HTTPException(status_code=404, detail="Post not found")
         platform = post.platform
 
-    if platform == "twitter":
-        background_tasks.add_task(publish_twitter_post, post_id)
-    else:
-        background_tasks.add_task(publish_linkedin_post, post_id)
+    if platform != "linkedin":
+        raise HTTPException(status_code=400, detail=f"Unsupported platform: {platform}")
 
-    return {"success": True, "message": f"Publishing {platform} post #{post_id}"}
+    background_tasks.add_task(publish_linkedin_post, post_id)
+    return {"success": True, "message": "Publishing LinkedIn post"}
 
 
 # ── Research API ──────────────────────────────────────────────
@@ -591,14 +491,10 @@ async def get_companies(limit: int = 200):
 @app.get("/api/status")
 async def system_status():
     """Check API connection status for all platforms."""
-    from config import is_twitter_configured, is_linkedin_configured, is_gemini_configured, is_openai_configured, is_reddit_configured, AI_PROVIDER, TWITTER_MODE, LINKEDIN_MODE
+    from config import is_linkedin_configured, is_gemini_configured, is_openai_configured, is_reddit_configured, AI_PROVIDER, LINKEDIN_MODE
     return JSONResponse({
         "dry_run": DRY_RUN,
         "ai_provider": AI_PROVIDER,
-        "twitter": {
-            "configured": is_twitter_configured(),
-            "mode": TWITTER_MODE
-        },
         "linkedin": {
             "configured": is_linkedin_configured(),
             "mode": LINKEDIN_MODE

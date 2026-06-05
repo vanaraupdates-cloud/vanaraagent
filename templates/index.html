@@ -774,10 +774,7 @@
           <span>LinkedIn</span>
           <span class="status-dot" id="dot-linkedin"></span>
         </div>
-        <div class="status-indicator-row">
-          <span>Twitter/X</span>
-          <span class="status-dot" id="dot-twitter"></span>
-        </div>
+
         <div class="status-indicator-row">
           <span>Reddit RSS</span>
           <span class="status-dot" id="dot-reddit"></span>
@@ -814,11 +811,7 @@
       <div class="content-pane">
         <!-- ── TAB: OVERVIEW (DASHBOARD) ── -->
         <div class="tab-panel active" id="tab-overview">
-          <!-- Platform Toggles -->
-          <div class="platform-selector">
-            <button class="platform-pill active" onclick="setPlatform('twitter')" id="pill-tw">Twitter/X (30 posts)</button>
-            <button class="platform-pill" onclick="setPlatform('linkedin')" id="pill-li">LinkedIn (30 posts)</button>
-          </div>
+
 
           <!-- Slots Slider Grid -->
           <div class="slot-grid-container" id="slots-slider-grid">
@@ -884,10 +877,7 @@
           <div class="card">
             <div class="card-header">
               <span class="card-title">📝 Daily Social Schedule Feed</span>
-              <div class="platform-selector" style="margin-bottom: 0;">
-                <button class="platform-pill active" onclick="setPlatform('twitter')" id="tab-pill-tw">Twitter/X</button>
-                <button class="platform-pill" onclick="setPlatform('linkedin')" id="tab-pill-li">LinkedIn</button>
-              </div>
+
             </div>
             <div class="card-body">
               <div class="post-list" id="full-posts-list">
@@ -1061,7 +1051,7 @@
     // System Global State
     const state = {
       activeTab: 'overview',
-      activePlatform: 'twitter',
+      activePlatform: 'linkedin',
       posts: [],
       articles: [],
       logs: [],
@@ -1208,7 +1198,7 @@
       if (titleEl && subtitleEl) {
         if (tabName === 'overview') {
           titleEl.textContent = 'Command Center';
-          subtitleEl.textContent = `Autonomous ${state.activePlatform === 'twitter' ? 'Twitter/X' : 'LinkedIn'} content engine — 30 posts/day, fully automated`;
+          subtitleEl.textContent = `Autonomous LinkedIn content engine — 30 posts/day, fully automated`;
         } else if (tabName === 'today-posts') {
           titleEl.textContent = "Today's Posting Schedule";
           subtitleEl.textContent = "Dynamic social queue for automated publishing cycles";
@@ -1229,19 +1219,6 @@
       }
     }
 
-    function setPlatform(platform) {
-      state.activePlatform = platform;
-      
-      // Update pills
-      document.getElementById('pill-tw').classList.toggle('active', platform === 'twitter');
-      document.getElementById('pill-li').classList.toggle('active', platform === 'linkedin');
-      document.getElementById('tab-pill-tw').classList.toggle('active', platform === 'twitter');
-      document.getElementById('tab-pill-li').classList.toggle('active', platform === 'linkedin');
-
-      document.getElementById('page-subtitle').textContent = `Autonomous ${platform === 'twitter' ? 'Twitter/X' : 'LinkedIn'} content engine — 30 posts/day, fully automated`;
-
-      renderPosts();
-    }
 
     /* ── Countdown Timer ── */
     function updateCountdownClock() {
@@ -1311,76 +1288,14 @@
       document.getElementById('dot-gemini').className = 'status-dot ' + (status.gemini ? 'active' : '');
       document.getElementById('dot-linkedin').className = 'status-dot ' + (status.linkedin.configured ? (status.linkedin.mode === 'api' ? 'active' : 'manual') : '');
       document.getElementById('dot-reddit').className = 'status-dot ' + (status.reddit ? 'active' : '');
-
-      const dotTw = document.getElementById('dot-twitter');
-      if (dotTw) {
-        dotTw.className = 'status-dot ' + (status.twitter.configured ? (status.twitter.mode === 'api' ? 'active' : 'manual') : '');
-        const row = dotTw.closest('.status-indicator-row');
-        if (row) {
-          row.style.display = status.twitter.configured ? 'flex' : 'none';
-        }
-      }
-
-      // Dynamically hide/show platform selector buttons based on config
-      const pillTw = document.getElementById('pill-tw');
-      const pillLi = document.getElementById('pill-li');
-      const tabPillTw = document.getElementById('tab-pill-tw');
-      const tabPillLi = document.getElementById('tab-pill-li');
-      
-      if (pillTw && pillLi) {
-        if (!status.twitter.configured) {
-          pillTw.style.display = 'none';
-          if (tabPillTw) tabPillTw.style.display = 'none';
-          if (state.activePlatform === 'twitter') {
-            setPlatform('linkedin');
-          }
-        } else {
-          pillTw.style.display = 'inline-block';
-          if (tabPillTw) tabPillTw.style.display = 'inline-block';
-        }
-        
-        if (!status.linkedin.configured) {
-          pillLi.style.display = 'none';
-          if (tabPillLi) tabPillLi.style.display = 'none';
-          if (state.activePlatform === 'linkedin') {
-            setPlatform('twitter');
-          }
-        } else {
-          pillLi.style.display = 'inline-block';
-          if (tabPillLi) tabPillLi.style.display = 'inline-block';
-        }
-        
-        // Hide platform selector entirely if only one is visible
-        const selector = document.querySelector('.platform-selector');
-        if (selector) {
-          if (!status.twitter.configured || !status.linkedin.configured) {
-            selector.style.display = 'none';
-          } else {
-            selector.style.display = 'flex';
-          }
-        }
-        // Also hide the selector in Today's Posts tab
-        const tabSelector = document.querySelector('#tab-today-posts .platform-selector');
-        if (tabSelector) {
-          if (!status.twitter.configured || !status.linkedin.configured) {
-            tabSelector.style.display = 'none';
-          } else {
-            tabSelector.style.display = 'flex';
-          }
-        }
-      }
     }
 
     async function loadPosts() {
       try {
-        const [twR, liR] = await Promise.all([
-          fetch('/api/posts?platform=twitter&today_only=true&limit=100'),
-          fetch('/api/posts?platform=linkedin&today_only=true&limit=100')
-        ]);
-        const twPosts = twR.ok ? await twR.json() : [];
+        const liR = await fetch('/api/posts?platform=linkedin&today_only=true&limit=100');
         const liPosts = liR.ok ? await liR.json() : [];
         
-        state.posts = [...twPosts, ...liPosts];
+        state.posts = liPosts;
         renderPosts();
       } catch (e) {
         console.error('Posts fetch error:', e);
@@ -1388,8 +1303,7 @@
     }
 
     function renderPosts() {
-      const activePlatform = state.activePlatform;
-      const platformPosts = state.posts.filter(p => p.platform === activePlatform);
+      const platformPosts = state.posts;
       
       const badgeCount = document.getElementById('posts-queue-badge');
       if (badgeCount) badgeCount.textContent = `${platformPosts.length} posts`;
@@ -1708,7 +1622,6 @@
 
     function renderCharts(data) {
       const labels = data.labels || [];
-      const twData = data.twitter || [];
       const liData = data.linkedin || [];
 
       // Destroy old
@@ -1731,7 +1644,6 @@
           data: {
             labels,
             datasets: [
-              { label: 'Twitter/X', data: twData, borderColor: '#0284c7', backgroundColor: 'rgba(2,132,199,0.05)', tension: 0.3, fill: true, pointRadius: 4 },
               { label: 'LinkedIn', data: liData, borderColor: '#7c3aed', backgroundColor: 'rgba(124,58,237,0.05)', tension: 0.3, fill: true, pointRadius: 4 }
             ]
           },
@@ -1746,7 +1658,6 @@
           data: {
             labels,
             datasets: [
-              { label: 'Twitter/X', data: twData, backgroundColor: '#0284c7', borderRadius: 4 },
               { label: 'LinkedIn', data: liData, backgroundColor: '#7c3aed', borderRadius: 4 }
             ]
           },

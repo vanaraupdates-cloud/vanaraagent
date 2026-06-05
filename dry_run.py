@@ -73,7 +73,7 @@ async def main():
     try:
         from agents.content_agent import generate_all_posts, save_posts_to_db
         posts_data = await generate_all_posts(articles, cycle="morning")
-        twitter_saved, linkedin_saved = await save_posts_to_db(posts_data)
+        linkedin_saved = await save_posts_to_db(posts_data)
 
         # Print summary table
         table = Table(title="Generated Posts Summary", style="bold")
@@ -81,10 +81,8 @@ async def main():
         table.add_column("Type", style="magenta")
         table.add_column("Count", style="green", justify="right")
 
+
         type_counts = {}
-        for p in posts_data["twitter"]:
-            t = p.get("post_type", "unknown")
-            type_counts[f"Twitter/{t}"] = type_counts.get(f"Twitter/{t}", 0) + 1
         for p in posts_data["linkedin"]:
             t = p.get("post_type", "unknown")
             type_counts[f"LinkedIn/{t}"] = type_counts.get(f"LinkedIn/{t}", 0) + 1
@@ -93,17 +91,10 @@ async def main():
             platform, ptype = key.split("/", 1)
             table.add_row(platform, ptype, str(count))
 
-        table.add_row("[bold]TOTAL Twitter[/]", "", f"[bold]{twitter_saved}[/]")
         table.add_row("[bold]TOTAL LinkedIn[/]", "", f"[bold]{linkedin_saved}[/]")
         console.print(table)
 
-        # Print sample posts
-        if posts_data["twitter"]:
-            console.print(Panel(
-                posts_data["twitter"][0]["content"],
-                title="[bold cyan]Sample Twitter Post[/]",
-                border_style="cyan"
-            ))
+
         if posts_data["linkedin"]:
             console.print(Panel(
                 posts_data["linkedin"][0]["content"][:500] + "..." if len(posts_data["linkedin"][0]["content"]) > 500 else posts_data["linkedin"][0]["content"],
@@ -120,9 +111,9 @@ async def main():
     # Step 5: Test scheduler (just generate schedule, don't actually publish)
     console.print("\n[bold]Step 5:[/] Testing schedule generation...")
     from scheduler import generate_dynamic_schedule
-    from config import TWITTER_WINDOW_START, TWITTER_WINDOW_END
+    from config import LINKEDIN_WINDOW_START, LINKEDIN_WINDOW_END
 
-    schedule = generate_dynamic_schedule(TWITTER_WINDOW_START, TWITTER_WINDOW_END, 30)
+    schedule = generate_dynamic_schedule(LINKEDIN_WINDOW_START, LINKEDIN_WINDOW_END, 30)
     gaps = [(schedule[i+1] - schedule[i]).seconds // 60 for i in range(len(schedule)-1)]
 
     console.print(f"[green]✅ Generated {len(schedule)} post times[/]")
