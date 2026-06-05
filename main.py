@@ -1,5 +1,5 @@
 """
-main.py — FastAPI application entry point
+# main.py — FastAPI application entry point (Triggering Redeployment: 2026-06-05)
 Serves the dashboard and manages the scheduler lifecycle
 """
 import asyncio
