@@ -38,6 +38,8 @@ class LinkedInAgent:
         """Initialise the requests session with the LinkedIn Bearer token and store the person URN."""
         self.access_token = LINKEDIN_ACCESS_TOKEN
         self.person_urn = LINKEDIN_PERSON_URN
+        if self.person_urn and self.person_urn.startswith("urn:li:person:"):
+            self.person_urn = self.person_urn.replace("urn:li:person:", "urn:li:member:")
         self.mode = LINKEDIN_MODE          # 'auto' | 'manual'
         self.dry_run = DRY_RUN             # True → never call real API
 

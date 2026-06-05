@@ -1310,8 +1310,16 @@
     function updateStatusIndicators(status) {
       document.getElementById('dot-gemini').className = 'status-dot ' + (status.gemini ? 'active' : '');
       document.getElementById('dot-linkedin').className = 'status-dot ' + (status.linkedin.configured ? (status.linkedin.mode === 'api' ? 'active' : 'manual') : '');
-      document.getElementById('dot-twitter').className = 'status-dot ' + (status.twitter.configured ? (status.twitter.mode === 'api' ? 'active' : 'manual') : '');
       document.getElementById('dot-reddit').className = 'status-dot ' + (status.reddit ? 'active' : '');
+
+      const dotTw = document.getElementById('dot-twitter');
+      if (dotTw) {
+        dotTw.className = 'status-dot ' + (status.twitter.configured ? (status.twitter.mode === 'api' ? 'active' : 'manual') : '');
+        const row = dotTw.closest('.status-indicator-row');
+        if (row) {
+          row.style.display = status.twitter.configured ? 'flex' : 'none';
+        }
+      }
 
       // Dynamically hide/show platform selector buttons based on config
       const pillTw = document.getElementById('pill-tw');
