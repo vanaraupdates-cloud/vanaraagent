@@ -148,6 +148,12 @@ templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 # ── Dashboard Route ──────────────────────────────────────────
 
+@app.get("/health")
+async def health_check():
+    """Simple health check endpoint for monitoring."""
+    return {"status": "healthy"}
+
+
 @app.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request):
     return templates.TemplateResponse(request, "index.html")
