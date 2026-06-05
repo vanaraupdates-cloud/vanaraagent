@@ -109,14 +109,16 @@ async def schedule_todays_posts():
     today_end = today_start + timedelta(days=1)
 
     async with AsyncSessionLocal() as session:
-        # Get pending LinkedIn posts (both scheduled and unscheduled)
+        # Get pending LinkedIn posts (scheduled for today, or created today and unscheduled)
         linkedin_result = await session.execute(
             select(Post).where(
                 and_(
                     Post.platform == "linkedin",
                     Post.status == "pending",
-                    Post.created_at >= today_start,
-                    Post.created_at < today_end
+                    (
+                        ((Post.scheduled_at >= today_start) & (Post.scheduled_at < today_end)) |
+                        ((Post.created_at >= today_start) & (Post.created_at < today_end) & (Post.scheduled_at.is_(None)))
+                    )
                 )
             ).order_by(Post.id.asc())
         )
@@ -152,8 +154,10 @@ async def schedule_todays_posts():
                 and_(
                     Post.platform == "linkedin",
                     Post.status == "pending",
-                    Post.created_at >= today_start,
-                    Post.created_at < today_end
+                    (
+                        ((Post.scheduled_at >= today_start) & (Post.scheduled_at < today_end)) |
+                        ((Post.created_at >= today_start) & (Post.created_at < today_end) & (Post.scheduled_at.is_(None)))
+                    )
                 )
             ).order_by(Post.id.asc())
         )

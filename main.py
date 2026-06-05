@@ -414,8 +414,10 @@ async def rebuild_schedule(background_tasks: BackgroundTasks):
             .where(
                 and_(
                     Post.status == "pending",
-                    Post.created_at >= today_start,
-                    Post.created_at < today_end
+                    (
+                        ((Post.scheduled_at >= today_start) & (Post.scheduled_at < today_end)) |
+                        ((Post.created_at >= today_start) & (Post.created_at < today_end))
+                    )
                 )
             )
             .values(scheduled_at=None)
