@@ -151,7 +151,7 @@ async def schedule_todays_posts():
         len(linkedin_posts)
     )
 
-    # Assign times and schedule jobs
+    # Assign times and commit to DB first (releasing SQLite lock)
     async with AsyncSessionLocal() as session:
         for i, post in enumerate(twitter_slots):
             if i < len(twitter_schedule):
@@ -168,6 +168,21 @@ async def schedule_todays_posts():
                             sub_post.scheduled_at = post_time
                             session.add(sub_post)
 
+        for i, post in enumerate(linkedin_posts):
+            if i < len(linkedin_schedule):
+                post_time = linkedin_schedule[i]
+                if post_time <= datetime.now():
+                    post_time = post_time + timedelta(days=1)
+                post.scheduled_at = post_time
+                session.add(post)
+
+        await session.commit()
+
+    # Now that the DB transaction is closed, schedule jobs safely
+    if scheduler:
+        for i, post in enumerate(twitter_slots):
+            if i < len(twitter_schedule):
+                post_time = post.scheduled_at
                 if not DRY_RUN and post_time > datetime.now():
                     job_id = f"twitter_post_{post.id}_{today}"
                     try:
@@ -183,12 +198,7 @@ async def schedule_todays_posts():
 
         for i, post in enumerate(linkedin_posts):
             if i < len(linkedin_schedule):
-                post_time = linkedin_schedule[i]
-                if post_time <= datetime.now():
-                    post_time = post_time + timedelta(days=1)
-                post.scheduled_at = post_time
-                session.add(post)
-
+                post_time = post.scheduled_at
                 if not DRY_RUN and post_time > datetime.now():
                     job_id = f"linkedin_post_{post.id}_{today}"
                     try:
@@ -201,8 +211,8 @@ async def schedule_todays_posts():
                         )
                     except Exception as e:
                         logger.warning(f"Could not schedule job {job_id}: {e}")
-
-        await session.commit()
+    else:
+        logger.warning("Scheduler is not active. Today's posts have been saved to the DB but not scheduled in memory.")
 
     logger.info(f"✅ Scheduled {len(twitter_posts)} Twitter + {len(linkedin_posts)} LinkedIn posts")
 

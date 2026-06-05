@@ -41,48 +41,104 @@ def get_llm_client():
 
 
 async def generate_with_llm(prompt: str, max_tokens: int = 500) -> str:
-    """Call the configured LLM and return text response."""
-    try:
-        if AI_PROVIDER == "gemini" and GEMINI_API_KEY:
-            from google import genai
-            client = genai.Client(api_key=GEMINI_API_KEY)
-            loop = asyncio.get_event_loop()
-            response = await loop.run_in_executor(
-                None,
-                lambda: client.models.generate_content(
-                    model="gemini-2.5-flash",
-                    contents=prompt
+    """Call the configured LLM and return text response with retries and model fallbacks."""
+    retries = 3
+    backoff = 3.0  # base backoff in seconds
+
+    for attempt in range(retries + 1):
+        try:
+            if AI_PROVIDER == "gemini" and GEMINI_API_KEY:
+                from google import genai
+                client = genai.Client(api_key=GEMINI_API_KEY)
+                loop = asyncio.get_event_loop()
+                
+                # Dynamic model fallback chain to handle API quota restrictions
+                candidate_models = ["gemini-flash-lite-latest", "gemini-3.1-flash-lite", "gemini-flash-latest"]
+                last_err = None
+                
+                for model_name in candidate_models:
+                    model_retries = 4
+                    model_backoff = 4.0
+                    for model_attempt in range(model_retries + 1):
+                        try:
+                            response = await loop.run_in_executor(
+                                None,
+                                lambda m=model_name: client.models.generate_content(
+                                    model=m,
+                                    contents=prompt
+                                )
+                            )
+                            return response.text.strip()
+                        except Exception as me:
+                            last_err = me
+                            err_str = str(me).lower()
+                            is_transient = any(code in err_str for code in ["429", "resource_exhausted", "503", "unavailable"])
+                            is_daily_limit = "generaterequestsperday" in err_str or "requests per day" in err_str
+                            
+                            if is_transient and not is_daily_limit and model_attempt < model_retries:
+                                sleep_time = model_backoff * (2 ** model_attempt) + random.uniform(0.5, 1.5)
+                                if "retry in" in err_str:
+                                    try:
+                                        import re
+                                        match = re.search(r"retry in ([\d\.]+)s", err_str)
+                                        if match:
+                                            sleep_time = float(match.group(1)) + 1.0
+                                    except Exception:
+                                        pass
+                                logger.warning(f"Model {model_name} hit rate-limit. Retrying in {sleep_time:.2f}s (Attempt {model_attempt+1}/{model_retries})...")
+                                await asyncio.sleep(sleep_time)
+                            else:
+                                logger.warning(f"Model {model_name} failed: {me}. Moving to next candidate...")
+                                break
+                raise last_err
+
+            elif AI_PROVIDER == "openai" and OPENAI_API_KEY:
+                from openai import AsyncOpenAI
+                client = AsyncOpenAI(api_key=OPENAI_API_KEY)
+                response = await client.chat.completions.create(
+                    model="gpt-4o",
+                    messages=[{"role": "user", "content": prompt}],
+                    max_tokens=max_tokens,
+                    temperature=0.85
                 )
-            )
-            return response.text.strip()
+                return response.choices[0].message.content.strip()
 
-        elif AI_PROVIDER == "openai" and OPENAI_API_KEY:
-            from openai import AsyncOpenAI
-            client = AsyncOpenAI(api_key=OPENAI_API_KEY)
-            response = await client.chat.completions.create(
-                model="gpt-4o",
-                messages=[{"role": "user", "content": prompt}],
-                max_tokens=max_tokens,
-                temperature=0.85
-            )
-            return response.choices[0].message.content.strip()
+            elif AI_PROVIDER == "ollama":
+                import httpx
+                async with httpx.AsyncClient() as client:
+                    response = await client.post(
+                        f"{OLLAMA_BASE_URL}/api/generate",
+                        json={"model": OLLAMA_MODEL, "prompt": prompt, "stream": False},
+                        timeout=60.0
+                    )
+                    return response.json()["response"].strip()
 
-        elif AI_PROVIDER == "ollama":
-            import httpx
-            async with httpx.AsyncClient() as client:
-                response = await client.post(
-                    f"{OLLAMA_BASE_URL}/api/generate",
-                    json={"model": OLLAMA_MODEL, "prompt": prompt, "stream": False},
-                    timeout=60.0
-                )
-                return response.json()["response"].strip()
+            else:
+                return generate_template_fallback(prompt)
 
-        else:
-            return generate_template_fallback(prompt)
+        except Exception as e:
+            err_str = str(e).lower()
+            is_transient = any(code in err_str for code in ["429", "resource_exhausted", "503", "unavailable"])
+            
+            if is_transient and attempt < retries:
+                # Calculate sleep with a minimum of the retry delay specified in error if possible
+                sleep_time = backoff * (2 ** attempt) + random.uniform(0.5, 1.5)
+                # Parse retryDelay from Google RPC error if present
+                if "retry in" in err_str:
+                    try:
+                        import re
+                        match = re.search(r"retry in ([\d\.]+)s", err_str)
+                        if match:
+                            sleep_time = float(match.group(1)) + 1.0
+                    except Exception:
+                        pass
+                logger.warning(f"Gemini transient error/rate-limit hit ({e}). Retrying in {sleep_time:.2f} seconds (Attempt {attempt+1}/{retries})...")
+                await asyncio.sleep(sleep_time)
+            else:
+                logger.error(f"LLM generation failed: {e}")
+                return generate_template_fallback(prompt)
 
-    except Exception as e:
-        logger.error(f"LLM generation failed: {e}")
-        return generate_template_fallback(prompt)
+    return generate_template_fallback(prompt)
 
 
 def generate_template_fallback(prompt: str) -> str:

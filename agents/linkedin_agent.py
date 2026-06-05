@@ -350,8 +350,8 @@ class LinkedInAgent:
                 queue = []
                 for post in posts:
                     scheduled = None
-                    if post.scheduled_time:
-                        scheduled = post.scheduled_time.date() if hasattr(post.scheduled_time, "date") else None
+                    if post.scheduled_at:
+                        scheduled = post.scheduled_at.date() if hasattr(post.scheduled_at, "date") else None
 
                     if scheduled is None or scheduled == today:
                         queue.append({
@@ -359,7 +359,7 @@ class LinkedInAgent:
                             "content": post.content,
                             "status": post.status,
                             "platform": post.platform,
-                            "scheduled_time": str(post.scheduled_time) if post.scheduled_time else None,
+                            "scheduled_time": str(post.scheduled_at) if post.scheduled_at else None,
                             "created_at": str(post.created_at) if hasattr(post, "created_at") and post.created_at else None,
                         })
 

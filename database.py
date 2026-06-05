@@ -145,6 +145,31 @@ sync_engine = create_engine(
     poolclass=StaticPool,
 )
 
+# SQLite pragmas to enable WAL mode for concurrency
+from sqlalchemy import event
+
+@event.listens_for(engine.sync_engine, "connect")
+def set_sqlite_pragma_async(dbapi_connection, connection_record):
+    cursor = dbapi_connection.cursor()
+    try:
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA synchronous=NORMAL")
+    except Exception:
+        pass
+    finally:
+        cursor.close()
+
+@event.listens_for(sync_engine, "connect")
+def set_sqlite_pragma_sync(dbapi_connection, connection_record):
+    cursor = dbapi_connection.cursor()
+    try:
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA synchronous=NORMAL")
+    except Exception:
+        pass
+    finally:
+        cursor.close()
+
 
 async def init_db():
     """Create all tables."""
