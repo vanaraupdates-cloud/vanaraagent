@@ -326,10 +326,15 @@ class LinkedInAgent:
                 )
                 return _empty
 
-            logger.warning("LinkedIn socialDetail HTTP %d for %s", response.status_code, post_urn)
+            # 404 → post was deleted or not found on LinkedIn; return zeros silently
+            if response.status_code == 404:
+                logger.debug("LinkedIn socialDetail 404 for %s — post not found; returning zeros", post_urn)
+                return _empty
+
+            logger.debug("LinkedIn socialDetail HTTP %d for %s", response.status_code, post_urn)
 
         except Exception as exc:
-            logger.warning("LinkedIn REST socialDetail failed for %s: %s", post_urn, exc)
+            logger.debug("LinkedIn REST socialDetail failed for %s: %s", post_urn, exc)
 
         # ── Strategy 2: v2 memberShareStatistics (personal member posts) ────────
         try:
@@ -360,17 +365,17 @@ class LinkedInAgent:
                     }
                 return _empty
 
-            if response2.status_code in (400, 403):
+            if response2.status_code in (400, 403, 404):
                 logger.debug(
                     "LinkedIn memberShareStatistics HTTP %d for %s — returning zeros",
                     response2.status_code, post_urn
                 )
                 return _empty
 
-            logger.warning("LinkedIn memberShareStatistics HTTP %d for %s", response2.status_code, post_urn)
+            logger.debug("LinkedIn memberShareStatistics HTTP %d for %s", response2.status_code, post_urn)
 
         except Exception as exc2:
-            logger.warning("LinkedIn memberShareStatistics failed for %s: %s", post_urn, exc2)
+            logger.debug("LinkedIn memberShareStatistics failed for %s: %s", post_urn, exc2)
 
         # All strategies exhausted — return zeros
         return _empty
