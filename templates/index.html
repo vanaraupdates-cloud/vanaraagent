@@ -1849,8 +1849,9 @@
       try {
         const r = await fetch(`/api/posts/${postId}/publish-now`, { method: 'POST' });
         const d = await r.json();
-        showToast(d.message || 'Publish requested', r.ok ? 'success' : 'error');
-        setTimeout(loadPosts, 1500);
+        showToast(d.message || 'Publish requested', (r.ok && d.success) ? 'success' : 'error');
+        loadPosts();
+        loadStats();
       } catch (e) {
         showToast('Error: ' + e.message, 'error');
       }

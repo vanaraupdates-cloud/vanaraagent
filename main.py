@@ -211,6 +211,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.middleware("http")
+async def add_no_cache_headers(request: Request, call_next):
+    response = await call_next(request)
+    if request.url.path.startswith("/api/"):
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    return response
+
 # Static files & templates
 STATIC_DIR = Path(__file__).parent / "static"
 TEMPLATES_DIR = Path(__file__).parent / "templates"
@@ -389,7 +398,7 @@ async def delete_post(post_id: int):
 
 
 @app.post("/api/posts/{post_id}/publish-now")
-async def publish_now(post_id: int, background_tasks: BackgroundTasks):
+async def publish_now(post_id: int):
     """Manually trigger immediate publishing of a post."""
     from scheduler import publish_linkedin_post
 
@@ -403,8 +412,17 @@ async def publish_now(post_id: int, background_tasks: BackgroundTasks):
     if platform != "linkedin":
         raise HTTPException(status_code=400, detail=f"Unsupported platform: {platform}")
 
-    background_tasks.add_task(publish_linkedin_post, post_id)
-    return {"success": True, "message": "Publishing LinkedIn post"}
+    await publish_linkedin_post(post_id)
+
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(select(Post).where(Post.id == post_id))
+        post = result.scalar_one_or_none()
+
+    if post.status == "posted":
+        return {"success": True, "message": "Post successfully published to LinkedIn!"}
+    else:
+        err_msg = post.error_message or "Unknown error"
+        return {"success": False, "message": f"Failed to publish: {err_msg}"}
 
 
 # ── Research API ──────────────────────────────────────────────
