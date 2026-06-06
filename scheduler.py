@@ -183,6 +183,11 @@ async def schedule_todays_posts():
         logger.warning("Scheduler is not active. Today's posts have been saved to the DB but not scheduled in memory.")
 
     logger.info(f"✅ Scheduled {len(linkedin_posts)} LinkedIn posts")
+    try:
+        from main import broadcast_event
+        await broadcast_event("schedule_rebuilt", {})
+    except Exception as e:
+        logger.warning(f"Failed to broadcast schedule_rebuilt: {e}")
 
 
 # ── Job Functions ────────────────────────────────────────────
@@ -191,8 +196,11 @@ async def run_morning_research():
     """5:30 AM — Morning research cycle."""
     logger.info("🌅 Morning research cycle starting...")
     from agents.research_agent import run_research_cycle
+    from main import broadcast_event
     try:
+        await broadcast_event("research_started", {"cycle": "morning"})
         await run_research_cycle(cycle="morning")
+        await broadcast_event("research_completed", {"cycle": "morning"})
     except Exception as e:
         logger.error(f"Morning research failed: {e}")
 
@@ -201,8 +209,11 @@ async def run_afternoon_research():
     """12:15 PM — Afternoon refresh cycle."""
     logger.info("☀️ Afternoon research refresh starting...")
     from agents.research_agent import run_research_cycle
+    from main import broadcast_event
     try:
+        await broadcast_event("research_started", {"cycle": "afternoon"})
         await run_research_cycle(cycle="afternoon")
+        await broadcast_event("research_completed", {"cycle": "afternoon"})
     except Exception as e:
         logger.error(f"Afternoon research failed: {e}")
 
@@ -214,12 +225,14 @@ async def run_content_generation():
     from database import AsyncSessionLocal, Article
     from sqlalchemy import select, and_
     from datetime import date
+    from main import broadcast_event
 
     today = date.today()
     today_start = datetime(today.year, today.month, today.day)
     today_end = today_start + timedelta(days=1)
 
     try:
+        await broadcast_event("generation_started", {})
         # Load today's morning research
         async with AsyncSessionLocal() as session:
             from sqlalchemy.orm import selectinload
@@ -252,6 +265,7 @@ async def run_content_generation():
 
         # Schedule posts immediately after generation
         await schedule_todays_posts()
+        await broadcast_event("generation_completed", {"saved_count": linkedin_saved})
 
     except Exception as e:
         logger.error(f"Content generation failed: {e}")
@@ -277,6 +291,7 @@ async def publish_linkedin_post(post_id: int):
     from agents.linkedin_agent import linkedin_agent
     from database import AsyncSessionLocal, Post
     from sqlalchemy import select
+    from main import broadcast_event
 
     logger.info(f"💼 Publishing LinkedIn post #{post_id}")
 
@@ -286,11 +301,13 @@ async def publish_linkedin_post(post_id: int):
         if not post or post.status == "posted":
             return
 
-    result = await linkedin_agent.post_text(post.content, post_id)
-    if result.get("success"):
+    res = await linkedin_agent.post_text(post.content, post_id)
+    if res.get("success"):
         logger.info(f"✅ LinkedIn post #{post_id} published")
+        await broadcast_event("post_published", {"post_id": post_id, "platform": "linkedin"})
     else:
-        logger.error(f"❌ LinkedIn post #{post_id} failed: {result.get('error')}")
+        logger.error(f"❌ LinkedIn post #{post_id} failed: {res.get('error')}")
+        await broadcast_event("post_failed", {"post_id": post_id, "platform": "linkedin", "error": res.get("error")})
 
 
 # ── Scheduler Lifecycle ──────────────────────────────────────

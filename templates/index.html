@@ -1110,9 +1110,26 @@
           msg = `Research cycle started for cycle '${data.cycle || 'morning'}'`;
           category = 'INFO';
           break;
+        case 'research_completed':
+          msg = `Research cycle completed successfully for cycle '${data.cycle || 'morning'}'`;
+          category = 'SUCCESS';
+          loadResearch();
+          break;
         case 'generation_started':
           msg = 'AI post generation cycle initiated in the background';
           category = 'INFO';
+          break;
+        case 'generation_completed':
+          msg = `AI post generation cycle completed successfully (${data.saved_count || 0} posts saved)`;
+          category = 'SUCCESS';
+          loadPosts();
+          loadStats();
+          break;
+        case 'schedule_rebuilt':
+          msg = 'Posting schedule rebuilt successfully';
+          category = 'SUCCESS';
+          loadPosts();
+          loadStats();
           break;
         case 'post_updated':
           msg = `Post #${data.post_id} was modified`;
@@ -1214,8 +1231,14 @@
         }
       }
 
-      if (tabName === 'analytics') {
+      if (tabName === 'overview' || tabName === 'today-posts') {
+        loadPosts();
+      } else if (tabName === 'analytics') {
         loadAnalytics();
+      } else if (tabName === 'logs') {
+        loadLogs();
+      } else if (tabName === 'research') {
+        loadResearch();
       }
     }
 
@@ -1694,8 +1717,42 @@
         if (!r.ok) return;
         state.logs = await r.json();
         renderLogs();
+        populateActivityFeed();
       } catch (e) {
         console.error('Logs fetch error:', e);
+      }
+    }
+
+    function populateActivityFeed() {
+      const list = document.getElementById('dashboard-activity-list');
+      if (!list) return;
+      
+      // Only populate if list is empty (initial load)
+      if (list.children.length > 0) return;
+      
+      // Take the first 15 logs from state.logs
+      const recentLogs = state.logs.slice(0, 15);
+      
+      list.innerHTML = recentLogs.map(l => {
+        // Since created_at in API is a timezone-aware ISO string, Date handles it perfectly
+        const timeStr = l.created_at ? new Date(l.created_at).toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '—';
+        let badgeCls = 'badge-blue';
+        if (l.level === 'SUCCESS') badgeCls = 'badge-green';
+        if (l.level === 'WARNING') badgeCls = 'badge-amber';
+        if (l.level === 'ERROR')   badgeCls = 'badge-red';
+        
+        return `
+          <div class="activity-item" style="display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px dashed rgba(255,255,255,0.05);">
+            <span class="activity-time" style="font-family: monospace; font-size: 11px; color: var(--text-muted);">${timeStr}</span>
+            <span class="activity-tag badge ${badgeCls}" style="min-width: 90px; text-align: center; font-size: 10px; font-weight: 700; text-transform: uppercase;">${l.module}</span>
+            <span class="activity-msg" style="font-size: 12.5px; color: var(--text-primary);">${escHtml(l.message)}</span>
+          </div>
+        `;
+      }).join('');
+      
+      const badge = document.getElementById('activity-events-badge');
+      if (badge) {
+        badge.textContent = `${recentLogs.length} events`;
       }
     }
 

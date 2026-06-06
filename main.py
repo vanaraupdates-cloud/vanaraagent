@@ -7,7 +7,7 @@ import json
 import logging
 import sys
 from contextlib import asynccontextmanager
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, timezone
 from pathlib import Path
 from typing import Optional, AsyncGenerator
 
@@ -18,7 +18,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.requests import Request
 from pydantic import BaseModel
-from sqlalchemy import select, and_, func, desc, update
+from sqlalchemy import select, and_, or_, func, desc, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sse_starlette.sse import EventSourceResponse
 
@@ -63,17 +63,73 @@ async def broadcast_event(event_type: str, data: dict):
 
 # ── App Lifecycle ─────────────────────────────────────────────
 
-async def run_initial_warmup():
-    """Run initial research and content generation if the database is empty."""
+async def check_and_catchup_today_posts():
+    """
+    Check if today's content generation was missed (e.g. system booted/started late).
+    If the database is completely empty, trigger a startup warmup.
+    Otherwise, if it is past 8:00 AM local time and we have fewer than 30 posts scheduled or created for today,
+    we trigger a catch-up run (morning research followed by content generation).
+    """
     try:
-        from scheduler import run_morning_research, run_content_generation
-        logger.info("🆕 Running initial warmup research cycle...")
-        await run_morning_research()
-        logger.info("🆕 Running initial warmup content generation cycle...")
-        await run_content_generation()
-        logger.info("✅ Initial startup warmup complete.")
+        from scheduler import schedule_todays_posts
+        
+        # Check if database is completely empty
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(select(func.count(Post.id)))
+            total_post_count = result.scalar() or 0
+            
+        if total_post_count == 0:
+            logger.info("🆕 Database is completely empty! Triggering startup warmup...")
+            async def run_warmup():
+                from scheduler import run_morning_research, run_content_generation
+                try:
+                    await run_morning_research()
+                    await run_content_generation()
+                except Exception as ex:
+                    logger.error(f"Failed initial warmup: {ex}")
+            asyncio.create_task(run_warmup())
+            return
+
+        today = date.today()
+        today_start = datetime(today.year, today.month, today.day)
+        today_end = today_start + timedelta(days=1)
+        
+        async with AsyncSessionLocal() as session:
+            # Count posts scheduled or created for today
+            result = await session.execute(
+                select(func.count(Post.id)).where(
+                    or_(
+                        and_(Post.scheduled_at >= today_start, Post.scheduled_at < today_end),
+                        and_(Post.scheduled_at.is_(None), Post.created_at >= today_start, Post.created_at < today_end)
+                    )
+                )
+            )
+            today_posts_count = result.scalar() or 0
+        
+        current_hour = datetime.now().hour
+        if today_posts_count < 30 and current_hour >= 8:
+            logger.info(f"⚠️ Startup catch-up check: only {today_posts_count} posts for today (expected 30), and it is past 8:00 AM. Triggering catch-up pipeline...")
+            
+            async def run_catchup_pipeline():
+                from scheduler import run_morning_research, run_content_generation
+                try:
+                    logger.info("🆕 Startup catch-up: Running research cycle first...")
+                    await run_morning_research()
+                    logger.info("🆕 Startup catch-up: Running content generation next...")
+                    await run_content_generation()
+                    logger.info("✅ Startup catch-up pipeline complete.")
+                except Exception as ex:
+                    logger.error(f"Failed catch-up pipeline: {ex}")
+            
+            asyncio.create_task(run_catchup_pipeline())
+        else:
+            logger.info(f"📅 Startup check: today has {today_posts_count} posts. Rebuilding scheduler queue in background...")
+            asyncio.create_task(schedule_todays_posts())
+            
     except Exception as e:
-        logger.error(f"Failed running initial warmup: {e}")
+        logger.error(f"Error in check_and_catchup_today_posts: {e}")
+        from scheduler import schedule_todays_posts
+        asyncio.create_task(schedule_todays_posts())
 
 
 @asynccontextmanager
@@ -90,16 +146,8 @@ async def lifespan(app: FastAPI):
     # Start scheduler
     await start_scheduler()
 
-    # Auto-generate today's posts on first run if database is empty, otherwise rebuild scheduling queue
-    async with AsyncSessionLocal() as session:
-        result = await session.execute(select(func.count(Post.id)))
-        post_count = result.scalar()
-        if post_count == 0:
-            logger.info("🆕 Database is empty! Triggering startup warmup in background...")
-            asyncio.create_task(run_initial_warmup())
-        else:
-            logger.info("📅 Database contains posts. Rebuilding scheduler queue in background...")
-            asyncio.create_task(schedule_todays_posts())
+    # Auto-generate or catch-up posts if needed
+    await check_and_catchup_today_posts()
 
     logger.info(f"✅ Dashboard ready at http://localhost:{DASHBOARD_PORT}")
     if DRY_RUN:
@@ -260,8 +308,12 @@ async def get_posts(
             today = date.today()
             today_start = datetime(today.year, today.month, today.day)
             today_end = today_start + timedelta(days=1)
-            conditions.append(Post.created_at >= today_start)
-            conditions.append(Post.created_at < today_end)
+            conditions.append(
+                or_(
+                    and_(Post.scheduled_at >= today_start, Post.scheduled_at < today_end),
+                    and_(Post.scheduled_at.is_(None), Post.created_at >= today_start, Post.created_at < today_end)
+                )
+            )
 
         if conditions:
             q = q.where(and_(*conditions))
@@ -276,13 +328,13 @@ async def get_posts(
         "platform": p.platform,
         "post_type": p.post_type,
         "status": p.status,
-        "scheduled_at": p.scheduled_at.isoformat() if p.scheduled_at else None,
-        "posted_at": p.posted_at.isoformat() if p.posted_at else None,
+        "scheduled_at": p.scheduled_at.astimezone().isoformat() if p.scheduled_at else None,
+        "posted_at": p.posted_at.replace(tzinfo=timezone.utc).isoformat() if p.posted_at else None,
         "thread_id": p.thread_id,
         "thread_position": p.thread_position,
         "thread_total": p.thread_total,
         "platform_post_id": p.platform_post_id,
-        "created_at": p.created_at.isoformat() if p.created_at else None,
+        "created_at": p.created_at.replace(tzinfo=timezone.utc).isoformat() if p.created_at else None,
         "error_message": p.error_message,
         "source_name": p.source_article.source if p.source_article else None,
         "source_score": p.source_article.total_score if p.source_article else None
@@ -376,7 +428,7 @@ async def get_research(today_only: bool = True, limit: int = 30):
         "trend_score": a.trend_score,
         "total_score": a.total_score,
         "cycle": a.cycle,
-        "fetched_at": a.fetched_at.isoformat() if a.fetched_at else None,
+        "fetched_at": a.fetched_at.replace(tzinfo=timezone.utc).isoformat() if a.fetched_at else None,
         "used": a.used
     } for a in articles])
 
@@ -469,7 +521,7 @@ async def get_logs(limit: int = 50):
         "level": l.level,
         "module": l.module,
         "message": l.message,
-        "created_at": l.created_at.isoformat() if l.created_at else None
+        "created_at": l.created_at.replace(tzinfo=timezone.utc).isoformat() if l.created_at else None
     } for l in logs])
 
 

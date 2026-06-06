@@ -4,10 +4,10 @@ services/analytics.py — Metrics fetching + Learning Loop
 import asyncio
 import logging
 import sys
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta, date, timezone
 from pathlib import Path
 
-from sqlalchemy import select, and_, func, desc
+from sqlalchemy import select, and_, or_, func, desc
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from database import AsyncSessionLocal, Post, PostAnalytics, LearningPreference, log_to_db
@@ -206,10 +206,15 @@ async def get_dashboard_stats() -> dict:
     today_end = today_start + timedelta(days=1)
 
     async with AsyncSessionLocal() as session:
-        # Today's post counts by status
+        # Today's post counts by status (scheduled for today or created today if unscheduled)
         result = await session.execute(
             select(Post.platform, Post.status, func.count(Post.id))
-            .where(Post.created_at >= today_start, Post.created_at < today_end)
+            .where(
+                or_(
+                    and_(Post.scheduled_at >= today_start, Post.scheduled_at < today_end),
+                    and_(Post.scheduled_at.is_(None), Post.created_at >= today_start, Post.created_at < today_end)
+                )
+            )
             .group_by(Post.platform, Post.status)
         )
         status_counts = result.all()
@@ -282,7 +287,7 @@ async def get_dashboard_stats() -> dict:
                 "id": p.id,
                 "platform": p.platform,
                 "post_type": p.post_type,
-                "scheduled_at": p.scheduled_at.isoformat() if p.scheduled_at else None,
+                "scheduled_at": p.scheduled_at.astimezone().isoformat() if p.scheduled_at else None,
                 "content_preview": p.content[:100] + "..." if len(p.content) > 100 else p.content
             }
             for p in next_posts
@@ -292,7 +297,7 @@ async def get_dashboard_stats() -> dict:
                 "id": p.id,
                 "platform": p.platform,
                 "post_type": p.post_type,
-                "posted_at": p.posted_at.isoformat() if p.posted_at else None,
+                "posted_at": p.posted_at.replace(tzinfo=timezone.utc).isoformat() if p.posted_at else None,
                 "content_preview": p.content[:100] + "..." if len(p.content) > 100 else p.content,
                 "status": p.status,
                 "likes": p.analytics.likes if p.analytics else 0,
