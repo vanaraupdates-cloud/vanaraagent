@@ -272,76 +272,108 @@ class LinkedInAgent:
     async def get_post_metrics(self, post_urn: str) -> dict:
         """Fetch engagement statistics for a LinkedIn post.
 
-        Uses the organizationalEntityShareStatistics endpoint.
+        For personal member accounts uses the REST posts/{urn}/socialDetail endpoint
+        (LinkedIn-Version: 202605). Falls back to zero metrics gracefully when the
+        access token only has write-only scope (w_member_social) and returns 403/400.
 
         Args:
             post_urn: The URN string returned by LinkedIn when the post was created,
-                      e.g. 'urn:li:share:123456789'.
+                      e.g. 'urn:li:share:123456789' or 'urn:li:ugcPost:123456789'.
 
         Returns:
             dict with keys: reach, impressions, clicks, likes, comments, shares, error.
         """
-        if not self.is_configured():
-            return {
-                "reach": 0, "impressions": 0, "clicks": 0,
-                "likes": 0, "comments": 0, "shares": 0,
-                "error": "LinkedInAgent not configured",
-            }
+        _empty = {"reach": 0, "impressions": 0, "clicks": 0,
+                  "likes": 0, "comments": 0, "shares": 0, "error": None}
 
-        # Encode the share URN as a query parameter
-        url = (
-            f"{self.BASE_URL}/organizationalEntityShareStatistics"
-            f"?q=organizationalEntity&organizationalEntity={self.person_urn}"
-            f"&shares[0]={post_urn}"
-        )
+        if not self.is_configured():
+            return {**_empty, "error": "LinkedInAgent not configured"}
+
+        import urllib.parse
+
+        # ── Strategy 1: REST posts socialDetail (v202605, personal & org) ──────
+        encoded_urn = urllib.parse.quote(post_urn, safe="")
+        rest_url = f"https://api.linkedin.com/rest/posts/{encoded_urn}/socialDetail"
+        rest_headers = {
+            "LinkedIn-Version": "202605",
+            "X-Restli-Protocol-Version": "2.0.0",
+        }
 
         try:
             loop = asyncio.get_event_loop()
             response = await loop.run_in_executor(
-                None, lambda: self.session.get(url)
+                None, lambda: self.session.get(rest_url, headers=rest_headers)
             )
 
             if response.status_code == 200:
                 data = response.json()
-                elements = data.get("elements", [])
-
-                if not elements:
-                    logger.warning("No statistics returned for post URN: %s", post_urn)
-                    return {
-                        "reach": 0, "impressions": 0, "clicks": 0,
-                        "likes": 0, "comments": 0, "shares": 0,
-                        "error": None,
-                    }
-
-                stats = elements[0].get("totalShareStatistics", {})
-
+                total = data.get("totalSocialActivityCounts", {})
                 return {
-                    "reach": stats.get("uniqueImpressionsCount", 0),
-                    "impressions": stats.get("impressionCount", 0),
-                    "clicks": stats.get("clickCount", 0),
-                    "likes": stats.get("likeCount", 0),
-                    "comments": stats.get("commentCount", 0),
-                    "shares": stats.get("shareCount", 0),
+                    "reach": total.get("uniqueImpressionsCount", 0),
+                    "impressions": total.get("impressionCount", 0),
+                    "clicks": total.get("clickCount", 0),
+                    "likes": total.get("numLikes", 0),
+                    "comments": total.get("numComments", 0),
+                    "shares": total.get("numShares", 0),
                     "error": None,
                 }
 
-            else:
-                error_msg = f"HTTP {response.status_code}: {response.text}"
-                logger.error("Failed to fetch LinkedIn metrics: %s", error_msg)
-                return {
-                    "reach": 0, "impressions": 0, "clicks": 0,
-                    "likes": 0, "comments": 0, "shares": 0,
-                    "error": error_msg,
-                }
+            # 403 / 400 → token lacks read scope; return zeros silently
+            if response.status_code in (400, 403):
+                logger.debug(
+                    "LinkedIn metrics unavailable for %s (HTTP %d) — write-only token; returning zeros",
+                    post_urn, response.status_code
+                )
+                return _empty
+
+            logger.warning("LinkedIn socialDetail HTTP %d for %s", response.status_code, post_urn)
 
         except Exception as exc:
-            msg = f"Error fetching LinkedIn post metrics: {exc}"
-            logger.exception(msg)
-            return {
-                "reach": 0, "impressions": 0, "clicks": 0,
-                "likes": 0, "comments": 0, "shares": 0,
-                "error": msg,
-            }
+            logger.warning("LinkedIn REST socialDetail failed for %s: %s", post_urn, exc)
+
+        # ── Strategy 2: v2 memberShareStatistics (personal member posts) ────────
+        try:
+            encoded_person = urllib.parse.quote(self.person_urn, safe="")
+            encoded_post = urllib.parse.quote(post_urn, safe="")
+            v2_url = (
+                f"{self.BASE_URL}/memberShareStatistics"
+                f"?q=member&memberIdentity={encoded_person}"
+                f"&shares[0]={encoded_post}"
+            )
+            response2 = await loop.run_in_executor(
+                None, lambda: self.session.get(v2_url)
+            )
+
+            if response2.status_code == 200:
+                data2 = response2.json()
+                elements = data2.get("elements", [])
+                if elements:
+                    stats = elements[0].get("totalShareStatistics", {})
+                    return {
+                        "reach": stats.get("uniqueImpressionsCount", 0),
+                        "impressions": stats.get("impressionCount", 0),
+                        "clicks": stats.get("clickCount", 0),
+                        "likes": stats.get("likeCount", 0),
+                        "comments": stats.get("commentCount", 0),
+                        "shares": stats.get("shareCount", 0),
+                        "error": None,
+                    }
+                return _empty
+
+            if response2.status_code in (400, 403):
+                logger.debug(
+                    "LinkedIn memberShareStatistics HTTP %d for %s — returning zeros",
+                    response2.status_code, post_urn
+                )
+                return _empty
+
+            logger.warning("LinkedIn memberShareStatistics HTTP %d for %s", response2.status_code, post_urn)
+
+        except Exception as exc2:
+            logger.warning("LinkedIn memberShareStatistics failed for %s: %s", post_urn, exc2)
+
+        # All strategies exhausted — return zeros
+        return _empty
 
     # ------------------------------------------------------------------
     # Export helpers

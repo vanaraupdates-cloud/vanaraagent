@@ -758,6 +758,10 @@
         <span class="nav-icon">⚡</span>
         <span>Full Pipeline</span>
       </div>
+      <div class="nav-item" onclick="triggerSync()">
+        <span class="nav-icon">🔄</span>
+        <span>Sync LinkedIn</span>
+      </div>
 
       <div class="sidebar-section-label">Publish Slots</div>
       <div class="sidebar-slots-container" id="sidebar-slots-list">
@@ -1147,6 +1151,21 @@
           msg = `Failed to publish post #${data.post_id} on ${data.platform || 'platform'}: ${data.error || 'Unknown error'}`;
           category = 'ERROR';
           loadPosts();
+          break;
+        case 'sync_started':
+          msg = 'LinkedIn synchronization started...';
+          category = 'INFO';
+          break;
+        case 'sync_completed':
+          msg = `LinkedIn sync complete! Processed ${data.count || 0} posts.${data.note ? ' (' + data.note + ')' : ''}`;
+          category = 'SUCCESS';
+          loadPosts();
+          loadStats();
+          loadAnalytics();
+          break;
+        case 'sync_failed':
+          msg = `LinkedIn sync failed: ${data.error || 'Unknown error'}`;
+          category = 'ERROR';
           break;
         default:
           msg = `${type}: ${JSON.stringify(data)}`;
@@ -1889,6 +1908,16 @@
       } catch (e) {
         showToast('Error: ' + e.message, 'error');
         if (btn) btn.innerHTML = '<span>⚡</span> Run Pipeline';
+      }
+    }
+
+    async function triggerSync() {
+      try {
+        const r = await fetch('/api/sync/run', { method: 'POST' });
+        const d = await r.json();
+        showToast(d.message || 'LinkedIn Sync started!', r.ok ? 'success' : 'error');
+      } catch (e) {
+        showToast('Error: ' + e.message, 'error');
       }
     }
 

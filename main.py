@@ -155,6 +155,13 @@ async def lifespan(app: FastAPI):
     # Start scheduler
     await start_scheduler()
 
+    # Trigger historical sync in background
+    try:
+        from services.sync import sync_all_posts
+        asyncio.create_task(sync_all_posts())
+    except Exception as e:
+        logger.warning(f"Could not trigger startup LinkedIn sync: {e}")
+
     # Auto-generate or catch-up posts if needed
     await check_and_catchup_today_posts()
 
@@ -508,6 +515,15 @@ async def rebuild_schedule(background_tasks: BackgroundTasks):
 
     background_tasks.add_task(schedule_todays_posts)
     return {"success": True, "message": "Schedule rebuild started"}
+
+
+@app.post("/api/sync/run")
+async def trigger_sync(background_tasks: BackgroundTasks):
+    """Manually trigger a full posts & metrics sync with LinkedIn."""
+    from services.sync import sync_all_posts
+    background_tasks.add_task(sync_all_posts)
+    await broadcast_event("sync_started", {})
+    return {"success": True, "message": "LinkedIn posts and metrics synchronization started in background"}
 
 
 # ── LinkedIn Export API ───────────────────────────────────────

@@ -29,6 +29,7 @@ logger = logging.getLogger(__name__)
 # ── Global Scheduler Instance ────────────────────────────────
 scheduler: Optional[AsyncIOScheduler] = None
 scheduling_lock = asyncio.Lock()
+pipeline_lock = asyncio.Lock()
 
 
 def create_scheduler() -> AsyncIOScheduler:
@@ -377,6 +378,11 @@ async def publish_linkedin_post(post_id: int):
         if is_live:
             await linkedin_agent._update_post_status(post_id, "live", platform_post_id)
             logger.info(f"✅ LinkedIn post #{post_id} verified live on platform")
+            try:
+                from services.sync import sync_single_post
+                await sync_single_post(post_id, platform_post_id)
+            except Exception as sync_err:
+                logger.warning(f"Immediate metrics sync failed for post #{post_id}: {sync_err}")
             await broadcast_event("post_published", {"post_id": post_id, "platform": "linkedin", "status": "live"})
         else:
             logger.warning(f"⚠️ LinkedIn post #{post_id} published but verification returned false")
@@ -386,33 +392,82 @@ async def publish_linkedin_post(post_id: int):
         await broadcast_event("post_failed", {"post_id": post_id, "platform": "linkedin", "error": res.get("error")})
 
 
+async def run_complete_pipeline():
+    """Runs the complete publishing pipeline: morning research + content generation.
+    
+    Protected by a concurrency lock and retry mechanisms.
+    """
+    if pipeline_lock.locked():
+        logger.warning("Pipeline is already running. Blocking duplicate run.")
+        return
+
+    async with pipeline_lock:
+        logger.info("⚡ Starting complete daily publishing pipeline...")
+        from database import log_to_db
+        await log_to_db("pipeline", "INFO", "Started complete daily publishing pipeline.")
+        
+        max_retries = 3
+        
+        # 1. Run Morning Research
+        research_success = False
+        for attempt in range(1, max_retries + 1):
+            try:
+                logger.info(f"Running morning research (attempt {attempt}/{max_retries})...")
+                await run_morning_research()
+                research_success = True
+                break
+            except Exception as e:
+                logger.error(f"Research attempt {attempt} failed: {e}")
+                if attempt < max_retries:
+                    await asyncio.sleep(10)
+                    
+        if not research_success:
+            logger.error("❌ Complete pipeline failed at research phase after max retries.")
+            await log_to_db("pipeline", "ERROR", "Pipeline failed at research phase after max retries.")
+            return
+
+        # 2. Run Content Generation
+        generation_success = False
+        for attempt in range(1, max_retries + 1):
+            try:
+                logger.info(f"Running content generation (attempt {attempt}/{max_retries})...")
+                await run_content_generation()
+                generation_success = True
+                break
+            except Exception as e:
+                logger.error(f"Content generation attempt {attempt} failed: {e}")
+                if attempt < max_retries:
+                    await asyncio.sleep(10)
+                    
+        if not generation_success:
+            logger.error("❌ Complete pipeline failed at generation phase after max retries.")
+            await log_to_db("pipeline", "ERROR", "Pipeline failed at content generation phase after max retries.")
+            return
+
+        logger.info("✅ Complete daily publishing pipeline finished successfully.")
+        await log_to_db("pipeline", "SUCCESS", "Complete daily publishing pipeline finished successfully.")
+
+
 # ── Scheduler Lifecycle ──────────────────────────────────────
 
 def setup_cron_jobs(sched: AsyncIOScheduler):
     """Register all recurring cron jobs."""
-    r1_h, r1_m = parse_time(RESEARCH_CYCLE_1)
     r2_h, r2_m = parse_time(RESEARCH_CYCLE_2)
     an_h, an_m = parse_time(ANALYTICS_PULL_TIME)
 
-    # Morning research: 8:00 AM
+    # Complete publishing pipeline: 8:00 AM daily
     sched.add_job(
-        run_morning_research,
-        CronTrigger(hour=r1_h, minute=r1_m, timezone=ZoneInfo("Asia/Kolkata")),
-        id="morning_research",
+        run_complete_pipeline,
+        CronTrigger(hour=8, minute=0, timezone=ZoneInfo("Asia/Kolkata")),
+        id="complete_daily_pipeline",
         replace_existing=True
     )
-    # Score + generate: 8:15 AM
+    # Recurring posts & metrics synchronization: every 30 minutes
+    from services.sync import sync_posts_and_metrics
     sched.add_job(
-        run_content_generation,
-        CronTrigger(hour=8, minute=15, timezone=ZoneInfo("Asia/Kolkata")),
-        id="content_generation",
-        replace_existing=True
-    )
-    # Prepare schedule: 8:45 AM
-    sched.add_job(
-        schedule_todays_posts,
-        CronTrigger(hour=8, minute=45, timezone=ZoneInfo("Asia/Kolkata")),
-        id="prepare_schedule",
+        sync_posts_and_metrics,
+        CronTrigger(minute="0,30", timezone=ZoneInfo("Asia/Kolkata")),
+        id="sync_linkedin_data",
         replace_existing=True
     )
     # Afternoon refresh: 12:15 PM
@@ -430,7 +485,7 @@ def setup_cron_jobs(sched: AsyncIOScheduler):
         replace_existing=True
     )
 
-    logger.info("✅ Cron jobs registered: research(8:00), generate(8:15), prepare(8:45), refresh(12:15), analytics(16:00)")
+    logger.info("✅ Cron jobs registered: pipeline(8:00), sync(0/30m), refresh(12:15), analytics(16:00)")
 
 
 async def start_scheduler() -> AsyncIOScheduler:

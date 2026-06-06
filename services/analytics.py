@@ -73,7 +73,7 @@ async def _pull_linkedin_analytics(posts: list):
                     continue
                 try:
                     metrics = await linkedin_agent.get_post_metrics(post.platform_post_id)
-                    if not metrics or "error" in metrics:
+                    if not metrics or metrics.get("error"):
                         continue
 
                     result = await session.execute(
@@ -210,38 +210,6 @@ async def get_dashboard_stats() -> dict:
     today_start = datetime(today.year, today.month, today.day)
     today_end = today_start + dt_timedelta(days=1)
 
-    import random
-    async with AsyncSessionLocal() as session:
-        # Seed mock analytics for posts that don't have one
-        posted_posts_result = await session.execute(
-            select(Post).where(Post.status.in_(["posted", "exported", "live"]))
-        )
-        posted_posts = posted_posts_result.scalars().all()
-        for p in posted_posts:
-            # Check if analytics already exists
-            an_res = await session.execute(
-                select(PostAnalytics).where(PostAnalytics.post_id == p.id)
-            )
-            analytics = an_res.scalar_one_or_none()
-            if not analytics:
-                impressions = random.randint(120, 950)
-                likes = random.randint(4, max(5, int(impressions * 0.08)))
-                comments = random.randint(0, max(1, int(likes * 0.4)))
-                shares = random.randint(0, max(1, int(likes * 0.2)))
-                reach = int(impressions * random.uniform(0.85, 0.98))
-                
-                analytics = PostAnalytics(
-                    post_id=p.id,
-                    impressions=impressions,
-                    likes=likes,
-                    comments=comments,
-                    shares=shares,
-                    reach=reach,
-                    link_clicks=random.randint(2, max(3, int(impressions * 0.05))),
-                    updated_at=datetime.utcnow()
-                )
-                session.add(analytics)
-        await session.commit()
 
     async with AsyncSessionLocal() as session:
         # Today's post counts by status (scheduled for today or created today if unscheduled)
