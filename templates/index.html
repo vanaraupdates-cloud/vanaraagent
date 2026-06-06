@@ -1056,7 +1056,8 @@
       articles: [],
       logs: [],
       stats: {},
-      charts: {}
+      charts: {},
+      activityFeedPopulated: false
     };
 
     document.addEventListener('DOMContentLoaded', () => {
@@ -1601,6 +1602,17 @@
           avgLikesEl.textContent = avgLikesVal % 1 === 0 ? avgLikesVal.toFixed(0) : avgLikesVal.toFixed(1);
         }
 
+        // Fetch and render charts
+        try {
+          const chartR = await fetch('/api/analytics/chart?days=7');
+          if (chartR.ok) {
+            const chartData = await chartR.json();
+            renderCharts(chartData);
+          }
+        } catch (chartErr) {
+          console.error('Charts fetch error:', chartErr);
+        }
+
         const recentListEl = document.getElementById('analytics-recent-list');
         if (recentListEl) {
           if (!stats.recent_posts || stats.recent_posts.length === 0) {
@@ -1727,8 +1739,8 @@
       const list = document.getElementById('dashboard-activity-list');
       if (!list) return;
       
-      // Only populate if list is empty (initial load)
-      if (list.children.length > 0) return;
+      if (state.activityFeedPopulated) return;
+      state.activityFeedPopulated = true;
       
       // Take the first 15 logs from state.logs
       const recentLogs = state.logs.slice(0, 15);

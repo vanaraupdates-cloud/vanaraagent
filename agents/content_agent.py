@@ -310,11 +310,14 @@ RULES:
 
 # ── Main Content Generation ──────────────────────────────────
 
-async def generate_all_posts(articles: list[dict], cycle: str = "morning") -> dict:
+async def generate_all_posts(articles: list[dict], cycle: str = "morning", target_count: int = None) -> dict:
     """
     Master function — generates LinkedIn posts in the unified template format.
     Returns dict with linkedin_posts list.
     """
+    if target_count is None:
+        target_count = DAILY_LINKEDIN_LIMIT
+
     logger.info(f"🧠 Starting content generation for {cycle} cycle ({len(articles)} articles)")
     await log_to_db("content_agent", "INFO", f"Content generation started — {len(articles)} source articles")
 
@@ -360,7 +363,6 @@ async def generate_all_posts(articles: list[dict], cycle: str = "morning") -> di
             "status": "pending"
         }
 
-    target_count = DAILY_LINKEDIN_LIMIT
     logger.info(f"Generating unified posts (target={target_count})...")
     post_count = 0
     article_idx = 0
@@ -416,17 +418,22 @@ async def save_posts_to_db(posts_data: dict) -> int:
 
     async with AsyncSessionLocal() as session:
         # Clean up existing pending/failed/skipped posts for today first to avoid duplication
-        from sqlalchemy import delete
-        from datetime import timedelta
-        today = date.today()
+        from sqlalchemy import delete, or_, and_
+        from datetime import timezone as dt_timezone, timedelta as dt_timedelta
+        ist_tz = dt_timezone(dt_timedelta(hours=5, minutes=30))
+        ist_now = datetime.now(ist_tz)
+        today = ist_now.date()
         today_start = datetime(today.year, today.month, today.day)
-        today_end = today_start + timedelta(days=1)
+        today_end = today_start + dt_timedelta(days=1)
         
         await session.execute(
             delete(Post).where(
-                Post.created_at >= today_start,
-                Post.created_at < today_end,
-                Post.status.in_(["pending", "failed", "skipped"])
+                Post.platform == "linkedin",
+                Post.status.in_(["pending", "failed", "skipped"]),
+                or_(
+                    and_(Post.scheduled_at >= today_start, Post.scheduled_at < today_end),
+                    and_(Post.scheduled_at.is_(None), Post.created_at >= today_start, Post.created_at < today_end)
+                )
             )
         )
 

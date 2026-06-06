@@ -84,17 +84,46 @@ def generate_dynamic_schedule(
     return schedule
 
 
+def get_next_static_slots(start_dt: datetime, count: int, reserved_times: set[datetime]) -> list[datetime]:
+    """
+    Get the next `count` static slot datetimes starting at or after `start_dt`.
+    Skips any datetimes that are present in the `reserved_times` set.
+    """
+    slots = []
+    current_dt = start_dt
+    
+    while len(slots) < count:
+        day_slots = []
+        for time_str in STATIC_SLOT_TIMES:
+            h, m = parse_time(time_str)
+            dt = datetime(current_dt.year, current_dt.month, current_dt.day, h, m)
+            if dt >= start_dt and dt not in reserved_times:
+                day_slots.append(dt)
+        
+        day_slots.sort()
+        for dt in day_slots:
+            if len(slots) < count:
+                slots.append(dt)
+            else:
+                break
+                
+        current_dt = current_dt + timedelta(days=1)
+        start_dt = datetime(current_dt.year, current_dt.month, current_dt.day, 0, 0)
+        
+    return slots
+
+
 async def schedule_todays_posts():
     """
-    Schedule today's pending posts at custom hardcoded intervals.
-    Called after content generation completes (~7:45 AM).
+    Schedule pending LinkedIn posts at custom hardcoded intervals.
+    Automatically assigns new times to unassigned or missed posts without clashing.
     """
     from database import AsyncSessionLocal, Post
     from sqlalchemy import select, and_
 
-    logger.info("📅 Scheduling today's posts...")
+    logger.info("📅 Scheduling pending posts...")
 
-    # Clear any existing today's publish jobs from scheduler to prevent stale executions
+    # Clear existing publish jobs from scheduler to prevent duplicate executions
     if scheduler:
         for job in list(scheduler.get_jobs()):
             if job.id.startswith("linkedin_post_"):
@@ -104,71 +133,56 @@ async def schedule_todays_posts():
                 except Exception as e:
                     logger.warning(f"Could not remove stale job {job.id}: {e}")
 
-    today = date.today()
-    today_start = datetime(today.year, today.month, today.day)
-    today_end = today_start + timedelta(days=1)
+    now = datetime.now()
 
     async with AsyncSessionLocal() as session:
-        # Get pending LinkedIn posts (scheduled for today, or created today and unscheduled)
-        linkedin_result = await session.execute(
+        # Get all pending LinkedIn posts
+        result = await session.execute(
             select(Post).where(
                 and_(
                     Post.platform == "linkedin",
-                    Post.status == "pending",
-                    (
-                        ((Post.scheduled_at >= today_start) & (Post.scheduled_at < today_end)) |
-                        ((Post.created_at >= today_start) & (Post.created_at < today_end) & (Post.scheduled_at.is_(None)))
-                    )
+                    Post.status == "pending"
                 )
             ).order_by(Post.id.asc())
         )
-        linkedin_posts = linkedin_result.scalars().all()
+        all_pending = result.scalars().all()
 
-    # Find posts that have no scheduled_at yet, or whose scheduled_at is in the past and still pending (missed posts)
-    unassigned_linkedin = [p for p in linkedin_posts if p.scheduled_at is None or (p.scheduled_at <= datetime.now() and p.status == "pending")]
+    # Determine reserved times (future scheduled posts) and unassigned posts (unscheduled or missed)
+    reserved_times = {p.scheduled_at for p in all_pending if p.scheduled_at and p.scheduled_at > now}
+    unassigned = [p for p in all_pending if p.scheduled_at is None or p.scheduled_at <= now]
 
-    # Generate schedules using slot times for the unassigned posts
-    linkedin_schedule = generate_dynamic_schedule(
-        LINKEDIN_WINDOW_START, LINKEDIN_WINDOW_END,
-        len(unassigned_linkedin)
-    )
+    if unassigned:
+        logger.info(f"Scheduling {len(unassigned)} unassigned or missed posts...")
+        next_slots = get_next_static_slots(now, len(unassigned), reserved_times)
+        
+        async with AsyncSessionLocal() as session:
+            for idx, post in enumerate(unassigned):
+                if idx < len(next_slots):
+                    slot_time = next_slots[idx]
+                    db_post = await session.get(Post, post.id)
+                    db_post.scheduled_at = slot_time
+                    session.add(db_post)
+                    logger.info(f"Assigned Post ID {post.id} to slot: {slot_time}")
+            await session.commit()
 
-    # Assign times and commit to DB first (releasing SQLite lock)
+    # Refresh all pending posts from DB to register scheduler jobs
     async with AsyncSessionLocal() as session:
-        for i, post in enumerate(unassigned_linkedin):
-            if i < len(linkedin_schedule):
-                post_time = linkedin_schedule[i]
-                if post_time <= datetime.now():
-                    post_time = post_time + timedelta(days=1)
-                
-                db_post = await session.get(Post, post.id)
-                db_post.scheduled_at = post_time
-                session.add(db_post)
-
-        await session.commit()
-
-    # Refresh the list from DB to ensure we have all scheduled_at times
-    async with AsyncSessionLocal() as session:
-        linkedin_result = await session.execute(
+        result = await session.execute(
             select(Post).where(
                 and_(
                     Post.platform == "linkedin",
-                    Post.status == "pending",
-                    (
-                        ((Post.scheduled_at >= today_start) & (Post.scheduled_at < today_end)) |
-                        ((Post.created_at >= today_start) & (Post.created_at < today_end) & (Post.scheduled_at.is_(None)))
-                    )
+                    Post.status == "pending"
                 )
-            ).order_by(Post.id.asc())
+            ).order_by(Post.scheduled_at.asc())
         )
-        linkedin_posts = linkedin_result.scalars().all()
+        all_pending = result.scalars().all()
 
-    # Now that the DB transaction is closed, schedule jobs safely
+    # Schedule active jobs in APScheduler
     if scheduler:
-        for post in linkedin_posts:
+        for post in all_pending:
             post_time = post.scheduled_at
-            if post_time and not DRY_RUN and post_time > datetime.now():
-                job_id = f"linkedin_post_{post.id}_{today}"
+            if post_time and not DRY_RUN and post_time > now:
+                job_id = f"linkedin_post_{post.id}_{post_time.date()}"
                 try:
                     scheduler.add_job(
                         publish_linkedin_post,
@@ -177,12 +191,13 @@ async def schedule_todays_posts():
                         id=job_id,
                         replace_existing=True
                     )
+                    logger.info(f"Registered job {job_id} for: {post_time}")
                 except Exception as e:
                     logger.warning(f"Could not schedule job {job_id}: {e}")
     else:
-        logger.warning("Scheduler is not active. Today's posts have been saved to the DB but not scheduled in memory.")
+        logger.warning("Scheduler is not active. Posts have been saved to the DB but not scheduled in memory.")
 
-    logger.info(f"✅ Scheduled {len(linkedin_posts)} LinkedIn posts")
+    logger.info(f"✅ Scheduled {len(all_pending)} LinkedIn posts")
     try:
         from main import broadcast_event
         await broadcast_event("schedule_rebuilt", {})
@@ -222,17 +237,43 @@ async def run_content_generation():
     """7:45 AM — Generate all posts from research."""
     logger.info("🧠 Content generation starting...")
     from agents.content_agent import generate_all_posts, save_posts_to_db
-    from database import AsyncSessionLocal, Article
-    from sqlalchemy import select, and_
-    from datetime import date
+    from database import AsyncSessionLocal, Article, Post
+    from sqlalchemy import select, and_, or_, func
+    from datetime import timezone as dt_timezone, timedelta as dt_timedelta
     from main import broadcast_event
 
-    today = date.today()
+    ist_tz = dt_timezone(dt_timedelta(hours=5, minutes=30))
+    ist_now = datetime.now(ist_tz)
+    today = ist_now.date()
     today_start = datetime(today.year, today.month, today.day)
-    today_end = today_start + timedelta(days=1)
+    today_end = today_start + dt_timedelta(days=1)
 
     try:
         await broadcast_event("generation_started", {})
+
+        # Count already posted/exported posts today
+        async with AsyncSessionLocal() as session:
+            result_posted = await session.execute(
+                select(func.count(Post.id)).where(
+                    Post.platform == "linkedin",
+                    Post.status.in_(["posted", "exported"]),
+                    or_(
+                        and_(Post.scheduled_at >= today_start, Post.scheduled_at < today_end),
+                        and_(Post.scheduled_at.is_(None), Post.created_at >= today_start, Post.created_at < today_end)
+                    )
+                )
+            )
+            already_posted = result_posted.scalar() or 0
+
+        actual_target = max(0, DAILY_LINKEDIN_LIMIT - already_posted)
+        if actual_target == 0:
+            logger.info("Daily LinkedIn posting limit of 30 posts has already been met. Skipping content generation.")
+            await schedule_todays_posts()
+            await broadcast_event("generation_completed", {"saved_count": 0})
+            return
+
+        logger.info(f"Target count to generate: {actual_target} posts (already posted {already_posted} today)")
+
         # Load today's morning research
         async with AsyncSessionLocal() as session:
             from sqlalchemy.orm import selectinload
@@ -259,7 +300,7 @@ async def run_content_generation():
                 for a in articles_db
             ]
 
-        posts_data = await generate_all_posts(articles, cycle="morning")
+        posts_data = await generate_all_posts(articles, cycle="morning", target_count=actual_target)
         linkedin_saved = await save_posts_to_db(posts_data)
         logger.info(f"✅ Saved {linkedin_saved} LinkedIn posts to DB")
 

@@ -90,9 +90,12 @@ async def check_and_catchup_today_posts():
             asyncio.create_task(run_warmup())
             return
 
-        today = date.today()
+        from datetime import timezone as dt_timezone, timedelta as dt_timedelta
+        ist_tz = dt_timezone(dt_timedelta(hours=5, minutes=30))
+        ist_now = datetime.now(ist_tz)
+        today = ist_now.date()
         today_start = datetime(today.year, today.month, today.day)
-        today_end = today_start + timedelta(days=1)
+        today_end = today_start + dt_timedelta(days=1)
         
         async with AsyncSessionLocal() as session:
             # Count posts scheduled or created for today
@@ -106,7 +109,7 @@ async def check_and_catchup_today_posts():
             )
             today_posts_count = result.scalar() or 0
         
-        current_hour = datetime.now().hour
+        current_hour = ist_now.hour
         if today_posts_count < 30 and current_hour >= 8:
             logger.info(f"⚠️ Startup catch-up check: only {today_posts_count} posts for today (expected 30), and it is past 8:00 AM. Triggering catch-up pipeline...")
             
@@ -305,9 +308,12 @@ async def get_posts(
         if status:
             conditions.append(Post.status == status)
         if today_only:
-            today = date.today()
+            from datetime import timezone as dt_timezone, timedelta as dt_timedelta
+            ist_tz = dt_timezone(dt_timedelta(hours=5, minutes=30))
+            ist_now = datetime.now(ist_tz)
+            today = ist_now.date()
             today_start = datetime(today.year, today.month, today.day)
-            today_end = today_start + timedelta(days=1)
+            today_end = today_start + dt_timedelta(days=1)
             conditions.append(
                 or_(
                     and_(Post.scheduled_at >= today_start, Post.scheduled_at < today_end),
@@ -328,7 +334,7 @@ async def get_posts(
         "platform": p.platform,
         "post_type": p.post_type,
         "status": p.status,
-        "scheduled_at": p.scheduled_at.astimezone().isoformat() if p.scheduled_at else None,
+        "scheduled_at": p.scheduled_at.isoformat() if p.scheduled_at else None,
         "posted_at": p.posted_at.replace(tzinfo=timezone.utc).isoformat() if p.posted_at else None,
         "thread_id": p.thread_id,
         "thread_position": p.thread_position,
