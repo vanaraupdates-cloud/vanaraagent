@@ -5,6 +5,7 @@ import asyncio
 import logging
 import sys
 from datetime import datetime, timedelta, date, timezone
+from zoneinfo import ZoneInfo
 from pathlib import Path
 
 from sqlalchemy import select, and_, or_, func, desc
@@ -23,7 +24,7 @@ async def pull_all_analytics():
     """
     logger.info("📊 Pulling analytics for today's posts...")
 
-    today = date.today()
+    today = datetime.now(ZoneInfo("Asia/Kolkata")).date()
     today_start = datetime(today.year, today.month, today.day)
     today_end = today_start + timedelta(days=1)
 
@@ -31,7 +32,7 @@ async def pull_all_analytics():
         result = await session.execute(
             select(Post).where(
                 and_(
-                    Post.status == "posted",
+                    Post.status.in_(["posted", "live"]),
                     Post.posted_at >= today_start,
                     Post.posted_at < today_end,
                     Post.platform_post_id.isnot(None)
@@ -109,7 +110,8 @@ async def run_learning_loop():
     """
     logger.info("🧠 Running learning loop...")
 
-    yesterday = date.today() - timedelta(days=1)
+    today = datetime.now(ZoneInfo("Asia/Kolkata")).date()
+    yesterday = today - timedelta(days=1)
     yesterday_start = datetime(yesterday.year, yesterday.month, yesterday.day)
     yesterday_end = yesterday_start + timedelta(days=1)
 
@@ -120,7 +122,7 @@ async def run_learning_loop():
                 PostAnalytics, Post.id == PostAnalytics.post_id, isouter=True
             ).where(
                 and_(
-                    Post.status == "posted",
+                    Post.status.in_(["posted", "live"]),
                     Post.posted_at >= yesterday_start,
                     Post.posted_at < yesterday_end
                 )
@@ -212,7 +214,7 @@ async def get_dashboard_stats() -> dict:
     async with AsyncSessionLocal() as session:
         # Seed mock analytics for posts that don't have one
         posted_posts_result = await session.execute(
-            select(Post).where(Post.status.in_(["posted", "exported"]))
+            select(Post).where(Post.status.in_(["posted", "exported", "live"]))
         )
         posted_posts = posted_posts_result.scalars().all()
         for p in posted_posts:
@@ -259,16 +261,21 @@ async def get_dashboard_stats() -> dict:
         result = await session.execute(
             select(func.sum(PostAnalytics.impressions), func.sum(PostAnalytics.likes))
             .join(Post, PostAnalytics.post_id == Post.id)
-            .where(Post.posted_at >= today_start, Post.posted_at < today_end)
+            .where(
+                Post.status.in_(["posted", "live"]),
+                Post.posted_at >= today_start,
+                Post.posted_at < today_end
+            )
         )
         totals = result.one()
 
         # Posts scheduled next
+        ist_now_naive = datetime.now(ZoneInfo("Asia/Kolkata")).replace(tzinfo=None)
         result = await session.execute(
             select(Post)
             .where(
                 Post.status == "pending",
-                Post.scheduled_at > datetime.now()
+                Post.scheduled_at > ist_now_naive
             )
             .order_by(Post.scheduled_at.asc())
             .limit(5)
@@ -280,7 +287,7 @@ async def get_dashboard_stats() -> dict:
         result = await session.execute(
             select(Post)
             .options(selectinload(Post.analytics))
-            .where(Post.status == "posted")
+            .where(Post.status.in_(["posted", "live"]))
             .order_by(Post.posted_at.desc())
             .limit(10)
         )
@@ -296,7 +303,7 @@ async def get_dashboard_stats() -> dict:
                 func.sum(PostAnalytics.impressions)
             )
             .join(PostAnalytics, Post.id == PostAnalytics.post_id, isouter=True)
-            .where(Post.status.in_(["posted", "exported"]))
+            .where(Post.status.in_(["posted", "exported", "live"]))
         )
         all_time_totals = result_all.one()
         all_time_posts = all_time_totals[0] or 0
@@ -308,7 +315,7 @@ async def get_dashboard_stats() -> dict:
 
     stats = {
         "today": {
-            "linkedin": {"posted": 0, "pending": 0, "failed": 0, "total": 0},
+            "linkedin": {"posted": 0, "live": 0, "exported": 0, "pending": 0, "failed": 0, "publishing": 0, "total": 0},
         },
         "impressions": int(totals[0] or 0),
         "likes": int(totals[1] or 0),
@@ -345,16 +352,43 @@ async def get_dashboard_stats() -> dict:
     }
 
     for platform, status, count in status_counts:
-        if platform in stats["today"] and status in stats["today"][platform]:
-            stats["today"][platform][status] = count
+        if platform in stats["today"]:
+            if status in stats["today"][platform]:
+                stats["today"][platform][status] = count
             stats["today"][platform]["total"] += count
 
+    # Fetch the latest learning preference for dynamic AI recommendations (outside the status loop)
+    async with AsyncSessionLocal() as session:
+        result_pref = await session.execute(
+            select(LearningPreference)
+            .order_by(LearningPreference.id.desc())
+            .limit(1)
+        )
+        pref = result_pref.scalar_one_or_none()
+        
+    recs = []
+    if pref:
+        if pref.best_hook_type:
+            recs.append(f"Your best performing post type is '{pref.best_hook_type}' — consider generating more of this format.")
+        if pref.best_post_time:
+            recs.append(f"Your best performing time is {pref.best_post_time} — consider shifting more posts there.")
+        if pref.best_length:
+            recs.append(f"Recommended post length is around {pref.best_length} characters for maximum engagement.")
+        if pref.notes:
+            recs.append(f"AI Observation: {pref.notes}")
+    else:
+        recs.append("Your best performing time is 12:00 — consider shifting more posts there.")
+        recs.append("'insight' and 'opinion' posts get the most engagement — write more of them.")
+        recs.append("Hooks need work — test more contrarian or surprising openers.")
+
+    stats["recommendations"] = recs
     return stats
 
 
 async def get_analytics_chart_data(days: int = 7) -> dict:
     """Get time-series data for analytics charts."""
-    start_date = datetime.utcnow() - timedelta(days=days)
+    today = datetime.now(ZoneInfo("Asia/Kolkata")).date()
+    start_date = datetime(today.year, today.month, today.day) - timedelta(days=days)
 
     async with AsyncSessionLocal() as session:
         result = await session.execute(
@@ -365,14 +399,18 @@ async def get_analytics_chart_data(days: int = 7) -> dict:
                 func.sum(PostAnalytics.likes).label("likes")
             )
             .join(PostAnalytics, Post.id == PostAnalytics.post_id, isouter=True)
-            .where(Post.posted_at >= start_date, Post.status == "posted", Post.platform == "linkedin")
+            .where(
+                Post.posted_at >= start_date,
+                Post.status.in_(["posted", "live"]),
+                Post.platform == "linkedin"
+            )
             .group_by(func.date(Post.posted_at))
             .order_by(func.date(Post.posted_at).asc())
         )
         rows = result.all()
 
     # Pre-populate list of last N days to ensure we show 0s for inactive days
-    today = date.today()
+    today = datetime.now(ZoneInfo("Asia/Kolkata")).date()
     day_list = [today - timedelta(days=i) for i in range(days)]
     day_list.reverse()
     

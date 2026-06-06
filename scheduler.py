@@ -6,6 +6,7 @@ import logging
 import random
 import sys
 from datetime import datetime, timedelta, date
+from zoneinfo import ZoneInfo
 from pathlib import Path
 from typing import Optional
 
@@ -27,6 +28,7 @@ logger = logging.getLogger(__name__)
 
 # ── Global Scheduler Instance ────────────────────────────────
 scheduler: Optional[AsyncIOScheduler] = None
+scheduling_lock = asyncio.Lock()
 
 
 def create_scheduler() -> AsyncIOScheduler:
@@ -41,7 +43,8 @@ def create_scheduler() -> AsyncIOScheduler:
     }
     return AsyncIOScheduler(
         jobstores=jobstores,
-        job_defaults=job_defaults
+        job_defaults=job_defaults,
+        timezone=ZoneInfo("Asia/Kolkata")
     )
 
 
@@ -72,7 +75,7 @@ def generate_dynamic_schedule(
     """
     Generate custom slot times from the hardcoded static schedule.
     """
-    today = date.today()
+    today = datetime.now(ZoneInfo("Asia/Kolkata")).date()
     schedule = []
     
     # Map count posts to custom static slot times
@@ -119,90 +122,108 @@ async def schedule_todays_posts():
     Automatically assigns new times to unassigned or missed posts without clashing.
     """
     from database import AsyncSessionLocal, Post
-    from sqlalchemy import select, and_
+    from sqlalchemy import select, and_, or_
 
-    logger.info("📅 Scheduling pending posts...")
+    async with scheduling_lock:
+        logger.info("📅 Scheduling pending posts...")
 
-    # Clear existing publish jobs from scheduler to prevent duplicate executions
-    if scheduler:
-        for job in list(scheduler.get_jobs()):
-            if job.id.startswith("linkedin_post_"):
-                try:
-                    scheduler.remove_job(job.id)
-                    logger.info(f"Removed stale job: {job.id}")
-                except Exception as e:
-                    logger.warning(f"Could not remove stale job {job.id}: {e}")
+        # Clear existing publish jobs from scheduler to prevent duplicate executions
+        if scheduler:
+            for job in list(scheduler.get_jobs()):
+                if job.id.startswith("linkedin_post_"):
+                    try:
+                        scheduler.remove_job(job.id)
+                        logger.info(f"Removed stale job: {job.id}")
+                    except Exception as e:
+                        logger.warning(f"Could not remove stale job {job.id}: {e}")
 
-    now = datetime.now()
+        now = datetime.now(ZoneInfo("Asia/Kolkata")).replace(tzinfo=None)
+        today = now.date()
+        today_start = datetime(today.year, today.month, today.day)
+        today_end = today_start + timedelta(days=1)
 
-    async with AsyncSessionLocal() as session:
-        # Get all pending LinkedIn posts
-        result = await session.execute(
-            select(Post).where(
-                and_(
-                    Post.platform == "linkedin",
-                    Post.status == "pending"
-                )
-            ).order_by(Post.id.asc())
-        )
-        all_pending = result.scalars().all()
-
-    # Determine reserved times (future scheduled posts) and unassigned posts (unscheduled or missed)
-    reserved_times = {p.scheduled_at for p in all_pending if p.scheduled_at and p.scheduled_at > now}
-    unassigned = [p for p in all_pending if p.scheduled_at is None or p.scheduled_at <= now]
-
-    if unassigned:
-        logger.info(f"Scheduling {len(unassigned)} unassigned or missed posts...")
-        next_slots = get_next_static_slots(now, len(unassigned), reserved_times)
-        
         async with AsyncSessionLocal() as session:
-            for idx, post in enumerate(unassigned):
-                if idx < len(next_slots):
-                    slot_time = next_slots[idx]
-                    db_post = await session.get(Post, post.id)
-                    db_post.scheduled_at = slot_time
-                    session.add(db_post)
-                    logger.info(f"Assigned Post ID {post.id} to slot: {slot_time}")
-            await session.commit()
-
-    # Refresh all pending posts from DB to register scheduler jobs
-    async with AsyncSessionLocal() as session:
-        result = await session.execute(
-            select(Post).where(
-                and_(
-                    Post.platform == "linkedin",
-                    Post.status == "pending"
-                )
-            ).order_by(Post.scheduled_at.asc())
-        )
-        all_pending = result.scalars().all()
-
-    # Schedule active jobs in APScheduler
-    if scheduler:
-        for post in all_pending:
-            post_time = post.scheduled_at
-            if post_time and not DRY_RUN and post_time > now:
-                job_id = f"linkedin_post_{post.id}_{post_time.date()}"
-                try:
-                    scheduler.add_job(
-                        publish_linkedin_post,
-                        trigger=DateTrigger(run_date=post_time),
-                        args=[post.id],
-                        id=job_id,
-                        replace_existing=True
+            # Get all pending LinkedIn posts
+            result = await session.execute(
+                select(Post).where(
+                    and_(
+                        Post.platform == "linkedin",
+                        Post.status == "pending"
                     )
-                    logger.info(f"Registered job {job_id} for: {post_time}")
-                except Exception as e:
-                    logger.warning(f"Could not schedule job {job_id}: {e}")
-    else:
-        logger.warning("Scheduler is not active. Posts have been saved to the DB but not scheduled in memory.")
+                ).order_by(Post.id.asc())
+            )
+            all_pending = result.scalars().all()
 
-    logger.info(f"✅ Scheduled {len(all_pending)} LinkedIn posts")
-    try:
-        from main import broadcast_event
-        await broadcast_event("schedule_rebuilt", {})
-    except Exception as e:
-        logger.warning(f"Failed to broadcast schedule_rebuilt: {e}")
+        # Determine reserved times: include any posts already scheduled/posted today OR pending future posts
+        async with AsyncSessionLocal() as session:
+            result_reserved = await session.execute(
+                select(Post).where(
+                    and_(
+                        Post.platform == "linkedin",
+                        or_(
+                            and_(Post.scheduled_at >= today_start, Post.scheduled_at < today_end),
+                            and_(Post.status == "pending", Post.scheduled_at > now)
+                        )
+                    )
+                )
+            )
+            reserved_posts = result_reserved.scalars().all()
+
+        reserved_times = {p.scheduled_at for p in reserved_posts if p.scheduled_at}
+        unassigned = [p for p in all_pending if p.scheduled_at is None or p.scheduled_at <= now]
+
+        if unassigned:
+            logger.info(f"Scheduling {len(unassigned)} unassigned or missed posts...")
+            next_slots = get_next_static_slots(now, len(unassigned), reserved_times)
+            
+            async with AsyncSessionLocal() as session:
+                for idx, post in enumerate(unassigned):
+                    if idx < len(next_slots):
+                        slot_time = next_slots[idx]
+                        db_post = await session.get(Post, post.id)
+                        db_post.scheduled_at = slot_time
+                        session.add(db_post)
+                        logger.info(f"Assigned Post ID {post.id} to slot: {slot_time}")
+                await session.commit()
+
+        # Refresh all pending posts from DB to register scheduler jobs
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(
+                select(Post).where(
+                    and_(
+                        Post.platform == "linkedin",
+                        Post.status == "pending"
+                    )
+                ).order_by(Post.scheduled_at.asc())
+            )
+            all_pending = result.scalars().all()
+
+        # Schedule active jobs in APScheduler
+        if scheduler:
+            for post in all_pending:
+                post_time = post.scheduled_at
+                if post_time and not DRY_RUN and post_time > now:
+                    job_id = f"linkedin_post_{post.id}_{post_time.date()}"
+                    try:
+                        scheduler.add_job(
+                            publish_linkedin_post,
+                            trigger=DateTrigger(run_date=post_time, timezone=ZoneInfo("Asia/Kolkata")),
+                            args=[post.id],
+                            id=job_id,
+                            replace_existing=True
+                        )
+                        logger.info(f"Registered job {job_id} for: {post_time}")
+                    except Exception as e:
+                        logger.warning(f"Could not schedule job {job_id}: {e}")
+        else:
+            logger.warning("Scheduler is not active. Posts have been saved to the DB but not scheduled in memory.")
+
+        logger.info(f"✅ Scheduled {len(all_pending)} LinkedIn posts")
+        try:
+            from main import broadcast_event
+            await broadcast_event("schedule_rebuilt", {})
+        except Exception as e:
+            logger.warning(f"Failed to broadcast schedule_rebuilt: {e}")
 
 
 # ── Job Functions ────────────────────────────────────────────
@@ -256,7 +277,7 @@ async def run_content_generation():
             result_posted = await session.execute(
                 select(func.count(Post.id)).where(
                     Post.platform == "linkedin",
-                    Post.status.in_(["posted", "exported"]),
+                    Post.status.in_(["posted", "exported", "live"]),
                     or_(
                         and_(Post.scheduled_at >= today_start, Post.scheduled_at < today_end),
                         and_(Post.scheduled_at.is_(None), Post.created_at >= today_start, Post.created_at < today_end)
@@ -339,13 +360,27 @@ async def publish_linkedin_post(post_id: int):
     async with AsyncSessionLocal() as session:
         result = await session.execute(select(Post).where(Post.id == post_id))
         post = result.scalar_one_or_none()
-        if not post or post.status == "posted":
+        if not post or post.status in ["posted", "live", "exported", "publishing"]:
+            logger.info(f"Skipping post #{post_id} because status is {post.status if post else 'None'}")
             return
+            
+        # Concurrency lock
+        post.status = "publishing"
+        await session.commit()
 
     res = await linkedin_agent.post_text(post.content, post_id)
     if res.get("success"):
-        logger.info(f"✅ LinkedIn post #{post_id} published")
-        await broadcast_event("post_published", {"post_id": post_id, "platform": "linkedin"})
+        platform_post_id = res.get("post_id")
+        
+        # Verify post is live
+        is_live = await linkedin_agent.verify_post_live(platform_post_id)
+        if is_live:
+            await linkedin_agent._update_post_status(post_id, "live", platform_post_id)
+            logger.info(f"✅ LinkedIn post #{post_id} verified live on platform")
+            await broadcast_event("post_published", {"post_id": post_id, "platform": "linkedin", "status": "live"})
+        else:
+            logger.warning(f"⚠️ LinkedIn post #{post_id} published but verification returned false")
+            await broadcast_event("post_published", {"post_id": post_id, "platform": "linkedin", "status": "posted"})
     else:
         logger.error(f"❌ LinkedIn post #{post_id} failed: {res.get('error')}")
         await broadcast_event("post_failed", {"post_id": post_id, "platform": "linkedin", "error": res.get("error")})
@@ -362,35 +397,35 @@ def setup_cron_jobs(sched: AsyncIOScheduler):
     # Morning research: 8:00 AM
     sched.add_job(
         run_morning_research,
-        CronTrigger(hour=r1_h, minute=r1_m),
+        CronTrigger(hour=r1_h, minute=r1_m, timezone=ZoneInfo("Asia/Kolkata")),
         id="morning_research",
         replace_existing=True
     )
     # Score + generate: 8:15 AM
     sched.add_job(
         run_content_generation,
-        CronTrigger(hour=8, minute=15),
+        CronTrigger(hour=8, minute=15, timezone=ZoneInfo("Asia/Kolkata")),
         id="content_generation",
         replace_existing=True
     )
     # Prepare schedule: 8:45 AM
     sched.add_job(
         schedule_todays_posts,
-        CronTrigger(hour=8, minute=45),
+        CronTrigger(hour=8, minute=45, timezone=ZoneInfo("Asia/Kolkata")),
         id="prepare_schedule",
         replace_existing=True
     )
     # Afternoon refresh: 12:15 PM
     sched.add_job(
         run_afternoon_research,
-        CronTrigger(hour=r2_h, minute=r2_m),
+        CronTrigger(hour=r2_h, minute=r2_m, timezone=ZoneInfo("Asia/Kolkata")),
         id="afternoon_research",
         replace_existing=True
     )
     # Analytics pull: 4:00 PM
     sched.add_job(
         run_analytics_pull,
-        CronTrigger(hour=an_h, minute=an_m),
+        CronTrigger(hour=an_h, minute=an_m, timezone=ZoneInfo("Asia/Kolkata")),
         id="analytics_pull",
         replace_existing=True
     )
@@ -428,7 +463,7 @@ def get_todays_schedule() -> list[dict]:
     jobs = []
     for job in scheduler.get_jobs():
         next_run = job.next_run_time
-        if next_run and next_run.date() == date.today():
+        if next_run and next_run.date() == datetime.now(ZoneInfo("Asia/Kolkata")).date():
             jobs.append({
                 "id": job.id,
                 "name": job.name or job.id,

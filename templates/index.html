@@ -957,27 +957,27 @@
               <div class="card-header">
                 <span class="card-title">🤖 AI Recommendations</span>
               </div>
-              <div class="card-body" style="display: flex; flex-direction: column; gap: 12px; padding: 20px;">
+              <div class="card-body" style="display: flex; flex-direction: column; gap: 12px; padding: 20px;" id="analytics-recommendations">
                 <div class="rec-box" style="background: #e8f3fc; border: 1px solid #d0e7f9; border-radius: var(--radius-sm); padding: 12px 16px; font-size: 12.5px; font-weight: 500; color: var(--text-primary); display: flex; align-items: center; gap: 10px;">
                   <span>💡</span>
-                  <span>Your best performing time is 12:00 — consider shifting more posts there</span>
+                  <span>Gathering performance data to generate custom optimization recommendations...</span>
                 </div>
-                <div class="rec-box" style="background: #e8f3fc; border: 1px solid #d0e7f9; border-radius: var(--radius-sm); padding: 12px 16px; font-size: 12.5px; font-weight: 500; color: var(--text-primary); display: flex; align-items: center; gap: 10px;">
-                  <span>💡</span>
-                  <span>'opinion' posts get the most engagement — write more of them</span>
-                </div>
-                <div class="rec-box" style="background: #e8f3fc; border: 1px solid #d0e7f9; border-radius: var(--radius-sm); padding: 12px 16px; font-size: 12.5px; font-weight: 500; color: var(--text-primary); display: flex; align-items: center; gap: 10px;">
-                  <span>💡</span>
-                  <span>Hooks need work — test more contrarian or surprising openers</span>
-                </div>
-                <div class="rec-box" style="background: #e8f3fc; border: 1px solid #d0e7f9; border-radius: var(--radius-sm); padding: 12px 16px; font-size: 12.5px; font-weight: 500; color: var(--text-primary); display: flex; align-items: center; gap: 10px;">
-                  <span>💡</span>
-                  <span>Use more specific numbers and data points in posts — they increase saves</span>
-                </div>
-                <div class="rec-box" style="background: #e8f3fc; border: 1px solid #d0e7f9; border-radius: var(--radius-sm); padding: 12px 16px; font-size: 12.5px; font-weight: 500; color: var(--text-primary); display: flex; align-items: center; gap: 10px;">
-                  <span>💡</span>
-                  <span>End every post with a direct question — drives comments significantly</span>
-                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Charts Section -->
+          <div class="analytics-grid" style="margin-top: 20px; margin-bottom: 20px;">
+            <div class="chart-box">
+              <div style="font-size:12px; font-weight:700; color:var(--text-secondary); margin-bottom:10px;">📈 Posts Published per Day</div>
+              <div style="position: relative; height: 260px; width: 100%;">
+                <canvas id="chart-posts-per-day"></canvas>
+              </div>
+            </div>
+            <div class="chart-box">
+              <div style="font-size:12px; font-weight:700; color:var(--text-secondary); margin-bottom:10px;">📊 Platform Distribution (LinkedIn)</div>
+              <div style="position: relative; height: 260px; width: 100%;">
+                <canvas id="chart-platform"></canvas>
               </div>
             </div>
           </div>
@@ -1378,10 +1378,18 @@
         let badgeCls = 'status-missed';
         let badgeText = 'Missed';
         
-        if (p.status === 'posted' || p.status === 'exported') {
+        if (p.status === 'live') {
+          cardClass = 'status-posted';
+          badgeCls = 'status-published';
+          badgeText = 'Live';
+        } else if (p.status === 'posted' || p.status === 'exported') {
           cardClass = 'status-posted';
           badgeCls = 'status-published';
           badgeText = 'Published';
+        } else if (p.status === 'publishing') {
+          cardClass = 'status-pending';
+          badgeCls = 'badge-blue';
+          badgeText = 'Publishing';
         } else if (p.status === 'failed') {
           cardClass = 'status-failed';
           badgeCls = 'status-failed';
@@ -1412,7 +1420,7 @@
             <div class="slot-card-footer" style="margin-top: auto; display: flex; flex-direction: column; gap: 8px;">
               <span class="slot-card-badge ${badgeCls}">${badgeText}</span>
               ${p.error_message ? `<div class="slot-card-error-text" style="font-size: 10.5px; color: #dc2626; line-height: 1.25; font-weight: 600; min-height: 28px; word-break: break-word;" title="${escAttr(p.error_message)}">⚠️ ${escHtml(p.error_message.split('\n')[0])}</div>` : ''}
-              <button class="btn btn-outline" onclick="publishNow(${p.id})">Publish Now</button>
+              ${(p.status === 'live' || p.status === 'posted' || p.status === 'exported') ? '' : `<button class="btn btn-outline" onclick="publishNow(${p.id})">Publish Now</button>`}
             </div>
           </div>
         `;
@@ -1444,14 +1452,20 @@
     }
 
     function postRowHTML(p, index) {
-      const isPublished = p.status === 'posted' || p.status === 'exported';
+      const isPublished = p.status === 'posted' || p.status === 'exported' || p.status === 'live';
       
       let badgeCls = 'badge-ready';
       let badgeLabel = 'ready';
       
-      if (p.status === 'posted' || p.status === 'exported') {
+      if (p.status === 'live') {
+        badgeCls = 'badge-green';
+        badgeLabel = 'live';
+      } else if (p.status === 'posted' || p.status === 'exported') {
         badgeCls = 'badge-green';
         badgeLabel = 'published';
+      } else if (p.status === 'publishing') {
+        badgeCls = 'badge-blue';
+        badgeLabel = 'publishing';
       } else if (p.status === 'failed') {
         badgeCls = 'badge-red';
         badgeLabel = 'failed';
@@ -1476,6 +1490,20 @@
       const chars = p.content ? p.content.length : 0;
       const displayName = p.thread_position ? `Thread Post ${p.thread_position}/${p.thread_total}` : (p.post_type ? p.post_type.charAt(0).toUpperCase() + p.post_type.slice(1) + " Post" : 'Social Post');
 
+      let publishedDetailsHtml = '';
+      if (isPublished) {
+        const pubTime = p.posted_at ? formatTime(p.posted_at) : '—';
+        const successState = (p.status === 'live') ? 'Success (Live & Verified)' : 'Success (Published)';
+        const platformLink = p.platform_post_id ? `https://www.linkedin.com/feed/update/${p.platform_post_id}` : '#';
+        publishedDetailsHtml = `
+          <div class="post-published-details" style="margin-top: 8px; padding: 6px 12px; background: rgba(16, 185, 129, 0.08); border-radius: 6px; border: 1px solid rgba(16, 185, 129, 0.2); font-size: 12.5px; display: flex; flex-wrap: wrap; gap: 12px; align-items: center;">
+            <span style="color: var(--emerald); font-weight: 700;">✓ ${successState}</span>
+            <span style="color: rgba(255,255,255,0.7);">🕒 Published Time: <strong style="color: #fff;">${pubTime}</strong></span>
+            ${p.platform_post_id ? `<span style="color: rgba(255,255,255,0.7);">🆔 URN: <a href="${platformLink}" target="_blank" style="color: var(--blue); text-decoration: underline; font-family: monospace; font-weight: 500;">${escHtml(p.platform_post_id)}</a></span>` : ''}
+          </div>
+        `;
+      }
+
       return `
         <div class="post-row">
           <div class="post-row-index">${index}</div>
@@ -1493,13 +1521,14 @@
               <span style="color: var(--blue); font-weight: 700; margin-right: 6px; font-size: 13.5px; line-height: 1.2;">*</span>
               <div class="post-row-snippet">"${escHtml(p.content || '')}"</div>
             </div>
+            ${publishedDetailsHtml}
           </div>
           <div class="post-row-right">
             <div class="post-row-time">${p.scheduled_at ? formatTime(p.scheduled_at) : '—'}</div>
             <span class="badge ${badgeCls}">${badgeLabel}</span>
             <div class="post-row-actions">
               <button class="btn btn-secondary btn-xs" onclick="openEditModal(${p.id})">Edit</button>
-              <button class="btn btn-primary btn-xs" onclick="publishNow(${p.id})">Publish Now</button>
+              ${isPublished ? '' : `<button class="btn btn-primary btn-xs" onclick="publishNow(${p.id})">Publish Now</button>`}
               ${isPublished ? '' : `<button class="btn btn-ghost btn-xs" onclick="skipPost(${p.id})">Skip</button>`}
             </div>
           </div>
@@ -1600,6 +1629,25 @@
         const avgLikesEl = document.getElementById('analytics-avglikes');
         if (avgLikesEl) {
           avgLikesEl.textContent = avgLikesVal % 1 === 0 ? avgLikesVal.toFixed(0) : avgLikesVal.toFixed(1);
+        }
+
+        const recsEl = document.getElementById('analytics-recommendations');
+        if (recsEl) {
+          if (stats.recommendations && stats.recommendations.length > 0) {
+            recsEl.innerHTML = stats.recommendations.map(r => `
+              <div class="rec-box" style="background: #e8f3fc; border: 1px solid #d0e7f9; border-radius: var(--radius-sm); padding: 12px 16px; font-size: 12.5px; font-weight: 500; color: var(--text-primary); display: flex; align-items: center; gap: 10px;">
+                <span>💡</span>
+                <span>${escHtml(r)}</span>
+              </div>
+            `).join('');
+          } else {
+            recsEl.innerHTML = `
+              <div class="rec-box" style="background: #e8f3fc; border: 1px solid #d0e7f9; border-radius: var(--radius-sm); padding: 12px 16px; font-size: 12.5px; font-weight: 500; color: var(--text-primary); display: flex; align-items: center; gap: 10px;">
+                <span>💡</span>
+                <span>Gathering performance data to generate custom optimization recommendations...</span>
+              </div>
+            `;
+          }
         }
 
         // Fetch and render charts
@@ -1754,7 +1802,7 @@
         if (l.level === 'ERROR')   badgeCls = 'badge-red';
         
         return `
-          <div class="activity-item" style="display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px dashed rgba(255,255,255,0.05);">
+          <div class="activity-item">
             <span class="activity-time" style="font-family: monospace; font-size: 11px; color: var(--text-muted);">${timeStr}</span>
             <span class="activity-tag badge ${badgeCls}" style="min-width: 90px; text-align: center; font-size: 10px; font-weight: 700; text-transform: uppercase;">${l.module}</span>
             <span class="activity-msg" style="font-size: 12.5px; color: var(--text-primary);">${escHtml(l.message)}</span>

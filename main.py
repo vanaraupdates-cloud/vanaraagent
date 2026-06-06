@@ -8,8 +8,14 @@ import logging
 import sys
 from contextlib import asynccontextmanager
 from datetime import datetime, date, timedelta, timezone
+from zoneinfo import ZoneInfo
 from pathlib import Path
 from typing import Optional, AsyncGenerator
+
+def serialize_ist_datetime(dt) -> Optional[str]:
+    if not dt:
+        return None
+    return dt.replace(tzinfo=timezone(timedelta(hours=5, minutes=30))).isoformat()
 
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends
 from fastapi.middleware.cors import CORSMiddleware
@@ -267,7 +273,7 @@ async def sse_stream(request: Request):
             if queue in sse_clients:
                 sse_clients.remove(queue)
 
-    return EventSourceResponse(event_generator())
+    return EventSourceResponse(event_generator(), headers={"X-Accel-Buffering": "no"})
 
 
 # ── Stats API ─────────────────────────────────────────────────
@@ -343,8 +349,8 @@ async def get_posts(
         "platform": p.platform,
         "post_type": p.post_type,
         "status": p.status,
-        "scheduled_at": p.scheduled_at.isoformat() if p.scheduled_at else None,
-        "posted_at": p.posted_at.replace(tzinfo=timezone.utc).isoformat() if p.posted_at else None,
+        "scheduled_at": serialize_ist_datetime(p.scheduled_at),
+        "posted_at": serialize_ist_datetime(p.posted_at),
         "thread_id": p.thread_id,
         "thread_position": p.thread_position,
         "thread_total": p.thread_total,
@@ -418,8 +424,8 @@ async def publish_now(post_id: int):
         result = await session.execute(select(Post).where(Post.id == post_id))
         post = result.scalar_one_or_none()
 
-    if post.status == "posted":
-        return {"success": True, "message": "Post successfully published to LinkedIn!"}
+    if post.status in ["posted", "live", "exported"]:
+        return {"success": True, "message": f"Post successfully published/exported! (Status: {post.status})"}
     else:
         err_msg = post.error_message or "Unknown error"
         return {"success": False, "message": f"Failed to publish: {err_msg}"}
@@ -433,7 +439,7 @@ async def get_research(today_only: bool = True, limit: int = 30):
     async with AsyncSessionLocal() as session:
         q = select(Article).order_by(Article.total_score.desc())
         if today_only:
-            today = date.today()
+            today = datetime.now(ZoneInfo("Asia/Kolkata")).date()
             today_start = datetime(today.year, today.month, today.day)
             q = q.where(Article.fetched_at >= today_start)
         q = q.limit(limit)
@@ -481,7 +487,7 @@ async def trigger_generation(background_tasks: BackgroundTasks):
 async def rebuild_schedule(background_tasks: BackgroundTasks):
     """Rebuild today's posting schedule (reschedule all pending posts)."""
     async with AsyncSessionLocal() as session:
-        today = date.today()
+        today = datetime.now(ZoneInfo("Asia/Kolkata")).date()
         today_start = datetime(today.year, today.month, today.day)
         today_end = today_start + timedelta(days=1)
         # Clear scheduled_at for all today's pending posts to allow recalculation and registration
