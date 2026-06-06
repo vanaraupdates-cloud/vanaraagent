@@ -124,8 +124,8 @@ async def schedule_todays_posts():
         )
         linkedin_posts = linkedin_result.scalars().all()
 
-    # Find posts that have no scheduled_at yet
-    unassigned_linkedin = [p for p in linkedin_posts if p.scheduled_at is None]
+    # Find posts that have no scheduled_at yet, or whose scheduled_at is in the past and still pending (missed posts)
+    unassigned_linkedin = [p for p in linkedin_posts if p.scheduled_at is None or (p.scheduled_at <= datetime.now() and p.status == "pending")]
 
     # Generate schedules using slot times for the unassigned posts
     linkedin_schedule = generate_dynamic_schedule(
